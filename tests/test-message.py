@@ -34,6 +34,9 @@ from ciphrtxt.message import Message, MessageHeader
 pkey = []
 Pkey = []
 
+test_keys = 1500
+test_msgs = 1500
+
 print('creating alice keys')
 alice = PrivateKey()
 alice.randomize(4)
@@ -58,25 +61,40 @@ print('message2a = ' + msg1a.serialize())
 if msg2a.decode(bob):
     print('decoded:', msg1a.ptxt)
 
-for i in range(0,1000):
+print('generating %d test keys' % test_keys)
+    
+for i in range(0,test_keys):
     a = PrivateKey()
     a.randomize(random.randint(0,8))
     b = PublicKey.deserialize(a.serialize_pubkey())
     pkey.append(a)
     Pkey.append(b)
 
-for i in range(0,1000):
+print('generating %d test messages' % test_msgs)
+    
+for i in range(0,test_msgs):
     ztxt = ''
     for j in range(1,random.randint(2,10)):
         ztxt += mtxt
-    f = random.randint(0,1000)
-    t = random.randint(0,1000)
+    f = random.randint(0,test_keys-1)
+    t = random.randint(0,test_keys-1)
     m = Message.encode(ztxt, Pkey[t], pkey[f])
+    mi = Message.encode_impersonate(ztxt, Pkey[f], pkey[t])
     ms = m.serialize()
-    print('msg ' + str(i) + ' = ' + ms)
+    mis = mi.serialize()
+    print('msg  ' + str(i) + ' = ' + ms)
+    print('msgi ' + str(i) + ' = ' + mis)
     md = Message.deserialize(ms)
+    mid = Message.deserialize(mis)
     assert md.decode(pkey[t])
+    assert md.decode_sent(pkey[f], m.altK)
+    assert mid.decode(pkey[t])
+    assert mid.decode_sent(pkey[f], mi.altK)
     print('mtxt = ' + md.ptxt)
-    for j in range(0,1000):
+    for j in range(0,test_keys):
         if j != t:
             assert not md.decode(pkey[j])
+            assert not mid.decode(pkey[j])
+        if j != f:
+            assert not md.decode_sent(pkey[j], m.altK)
+            assert not mid.decode_sent(pkey[j], mi.altK)

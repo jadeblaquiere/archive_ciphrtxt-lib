@@ -174,7 +174,11 @@ class Message (MessageHeader):
         if len(msg[0]) != 64:
             # print('s length failed')
             return False
-        s = int(msg[0],16)
+        s = 0
+        try:
+            s = int(msg[0],16)
+        except ValueError:
+            return False
         if self.I != (_G * s):
             # print('I did not match s')
             return False
@@ -193,9 +197,16 @@ class Message (MessageHeader):
         DH = self.K * privkey.current_privkey_val(self.time)
         return self._decode(DH)
 
-    def decode_sent(self, privkey, altK):
-        DH = altK * self.current_privkey_val(self.time)
-        return self._decode(DH)
+    def decode_sent(self, privkey, altK=None):
+        if altK is None:
+            if self.altK is None:
+                return False
+            altk = self.altK
+        DH = altK * privkey.current_privkey_val(self.time)
+        if self._decode(DH):
+            self.altK = altK
+            return True
+        return False
 
     @staticmethod
     def encode(ptxt, pubkey, privkey=None, progress_callback=None, 
