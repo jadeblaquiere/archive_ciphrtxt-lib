@@ -26,47 +26,57 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from ciphrtxt.keys import PrivateKey, PublicKey
 from Crypto.Random import random
-import time
 
-from ecpy.curves import curve_secp256k1
-from ecpy.point import Point, Generator
+from ciphrtxt.keys import PublicKey, PrivateKey
+from ciphrtxt.message import Message, MessageHeader
 
-_C = curve_secp256k1
-# _C = curve_secp384r1
-# _C = curve_secp112r1
-# _C = curve_bauer9
+pkey = []
+Pkey = []
 
-_G_Pt = Generator.init(_C['G'][0], _C['G'][1])
-
-import sys
-sys.setrecursionlimit(512)
-alice = PrivateKey(name='Alice')
-alice.set_metadata('phone', '555-555-1212')
-print('name =', alice.name)
-print('phone=', alice.get_metadata('phone'))
+print('creating alice keys')
+alice = PrivateKey()
+alice.randomize(4)
+aliceP = PublicKey.deserialize(alice.serialize_pubkey())
+print('creating bob keys')
 bob = PrivateKey()
-for i in range(100):
-    alice.randomize(4)
-    bob.randomize(4)
-    print('p=', alice.serialize_privkey())
-    ex = alice.serialize_pubkey()
-    print('P=', str(ex))
-    print('\n')
-    apub = PublicKey.deserialize(ex)
-    print('Q=', apub.serialize_pubkey())
-    ex = alice.serialize_privkey()
-    print(ex)
-    apriv = PrivateKey.deserialize(ex)
-    print('q=', apriv.serialize_privkey())
-    assert alice.serialize_privkey() == apriv.serialize_privkey()
-    assert alice.serialize_pubkey() == apub.serialize_pubkey()
-    ex = bob.serialize_pubkey()
-    bpub = PublicKey.deserialize(ex)
-    for j in range(100):
-        future = int(random.randint(int(time.time()), 0x7fffffff))
-        z = alice.current_privkey_val(future)
-        Z = alice.current_pubkey_point(future)
-        W = (_G_Pt * z)
-        assert Z == W
+bob.randomize(4)
+bobP = PublicKey.deserialize(bob.serialize_pubkey())
+print('keys complete')
+
+mtxt = 'the quick brown fox jumped over the lazy dog'
+msg1 = Message.encode(mtxt, bobP, alice)
+print('message1 = ' + msg1.serialize())
+msg1a = Message.deserialize(msg1.serialize())
+print('message1a = ' + msg1a.serialize())
+if msg1a.decode(bob):
+    print('decoded:', msg1a.ptxt)
+msg2 = Message.encode_impersonate(mtxt, aliceP, bob)
+print('message2 = ' + msg2.serialize())
+msg2a = Message.deserialize(msg2.serialize())
+print('message2a = ' + msg1a.serialize())
+if msg2a.decode(bob):
+    print('decoded:', msg1a.ptxt)
+
+for i in range(0,1000):
+    a = PrivateKey()
+    a.randomize(random.randint(0,8))
+    b = PublicKey.deserialize(a.serialize_pubkey())
+    pkey.append(a)
+    Pkey.append(b)
+
+for i in range(0,1000):
+    ztxt = ''
+    for j in range(1,random.randint(2,10)):
+        ztxt += mtxt
+    f = random.randint(0,1000)
+    t = random.randint(0,1000)
+    m = Message.encode(ztxt, Pkey[t], pkey[f])
+    ms = m.serialize()
+    print('msg ' + str(i) + ' = ' + ms)
+    md = Message.deserialize(ms)
+    assert md.decode(pkey[t])
+    print('mtxt = ' + md.ptxt)
+    for j in range(0,1000):
+        if j != t:
+            assert not md.decode(pkey[j])

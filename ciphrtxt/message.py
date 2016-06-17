@@ -27,49 +27,99 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import ciphrtxt.keys as keys
+from binascii import hexlify, unhexlify
+from base64 import b64encode, b64decode
+import time
+import hashlib
 
-_header_size = (8+1+8+1+66+1+66+1+66)
+from Crypto.Random import random
+from Crypto.Cipher import AES
+from Crypto.Util import Counter
+
+from ecpy.curves import curve_secp256k1
+from ecpy.point import Point, Generator
+from ecpy.ecdsa import ECDSA
+
+# version = 1.00 in fixed point
+_msg_api_ver = b'M0100'
+
+_C = curve_secp256k1
+# _C = curve_secp384r1
+# _C = curve_secp112r1
+# _C = curve_bauer9
+
+_masksize = min(32, _C['bits'])
+_maskbits = (int((_masksize / 3) + 0))
+
+_G = Generator.init(_C['G'][0], _C['G'][1])
+ECDSA.set_curve(_C)
+ECDSA.set_generator(_G)
+_ecdsa = ECDSA()
+
+# convert integer to hex string
+_pfmt = b'%%0%dx' % (((_C['bits'] + 7) >> 3) << 1)
+_mfmt = b'%%0%dx' % (((_masksize + 7) >> 3) << 1)
+
+_header_size = (5+1+8+1+8+1+66+1+66+1+66)
+
+_default_ttl = (7*24*60*60)
 
 class MessageHeader (object):
     def __init__(self):
-        self.m = {}
-        self.m['time'] = None
-        self.m['expire'] = None
-        self.m['I'] = None
-        self.m['J'] = None
-        self.m['K'] = None
+        self.time = None
+        self.expire = None
+        self.I = None
+        self.J = None
+        self.K = None
 
-    def import_header(self, cmsg):
+    def _serialize_header(self):
+        hdr = _msg_api_ver + ':' + ('%08X' % self.time) + ':'
+        hdr += ('%08X' % self.expire) + ':' + self.I.compress() + ':'
+        hdr += self.J.compress() + ':' + self.K.compress()
+        return hdr
+
+    def serialize(self):
+        return self._serialize_header()
+
+    @staticmethod
+    def deserialize(cmsg):
+        z = MessageHeader()
+        if z._deserialize_header(cmsg):
+            return z
+        else:
+            return None
+
+    def _deserialize_header(self, cmsg):
         if len(cmsg) < _header_size:
             return False
         hdrdata = cmsg[:_header_size].split(':')
-        if len(hdrdata) != 5:
+        if len(hdrdata) != 6:
             return False
-        self.m['time'] = int(hdrdata[0], 16)
-        self.m['expire'] = int(hdrdata[1], 16)
-        self.m['I'] = keys.decompress_point(hdrdata[2])
-        self.m['J'] = keys.decompress_point(hdrdata[3])
-        self.m['K'] = keys.decompress_point(hdrdata[4])
+        if hdrdata[0] != _msg_api_ver:
+            return False
+        self.time = int(hdrdata[1], 16)
+        self.expire = int(hdrdata[2], 16)
+        self.I = Point.decompress(hdrdata[3])
+        self.J = Point.decompress(hdrdata[4])
+        self.K = Point.decompress(hdrdata[5])
         return True
-    
-    def export_header(self):
-        hdr = ('%08X' % self.m['time']) + ':'
-        hdr += ('%08X' % self.m['expire']) + ':'
-        hdr += keys.compress_point(self.m['I']) + ':'
-        hdr += keys.compress_point(self.m['J']) + ':'
-        hdr += keys.compress_point(self.m['K'])
-        return hdr
-        
+
+    def is_for(self, privkey):
+        if ((self.I.affine()[0] >> (_C['bits'] - keys._masksize)) &
+                privkey.addr['mask']) != privkey.addr['mtgt']:
+            return False
+        return self.I * privkey.current_privkey_val(self.time) == self.J
+
     def __eq__(self,h):
-        if self.m['time'] != h.m['time']:
+        if self.time != h.time:
             return False
-        if self.m['expire'] != h.m['expire']:
+        if self.expire != h.expire:
             return False
-        if self.m['I'] != h.m['I']:
+        if self.I != h.I:
             return False
-        if self.m['J'] != h.m['J']:
+        if self.J != h.J:
             return False
-        if self.m['K'] != h.m['K']:
+        if self.K != h.K:
             return False
         return True
     
@@ -77,80 +127,210 @@ class MessageHeader (object):
         return not (self == h)
 
     def __str__(self):
-        return export_header()
+        return self.serialize()
+
+    def __repr__(self):
+        return 'MessageHeader.deserialize('+ self.serialize() + ')'
 
 
 
 class Message (MessageHeader):
     def __init__(self, cmsg=None):
         super(self.__class__, self).__init__()
-        self.m['m'] = None
-        self.m['from'] = None
-        self.m['to'] = None
-        self.m['topic'] = None
-        self.m['body'] = None
-        self.m['cmsg'] = None
-        self.m['servertime'] = None
-        if cmsg:
+        self.s = None
+        self.ptxt = None
+        self.ctxt = None
+        self.altK = None
+        if cmsg is not None:
             self.import_message(cmsg)
 
-    def import_message(self, cmsg):
+    @staticmethod
+    def deserialize(cmsg):
         hdrdata = cmsg.split(':')
-        if len(hdrdata) != 6:
+        if len(hdrdata) != 7:
+            return None
+        z = Message()
+        if not z._deserialize_header(cmsg[:_header_size]):
+            return None
+        try:
+            z.ctxt = b64decode(hdrdata[6])
+        except:
+            return None
+        return z
+
+    def serialize(self):
+        return self._serialize_header() + ':' + b64encode(self.ctxt)
+
+    def _decode(self,DH):
+        iv = int(self.I.compress()[-32:],16)
+        keybin = unhexlify(DH.compress()[-64:])
+        counter = Counter.new(128,initial_value=iv)
+        cryptor = AES.new(keybin, AES.MODE_CTR, counter=counter)
+        etxt = cryptor.decrypt(self.ctxt)
+        msg = etxt.split(':')
+        if len(msg) != 2:
+            # print('split failed')
             return False
-        self.import_header(cmsg[:_header_size])
-        self.m['m'] = hdrdata[5]
-        self.m['s'] = None
-        self.m['from'] = None
-        self.m['to'] = None
-        self.m['topic'] = None
-        self.m['body'] = None
-        self.m['servertime'] = None
-        self.m['cmsg'] = cmsg
+        if len(msg[0]) != 64:
+            # print('s length failed')
+            return False
+        s = int(msg[0],16)
+        if self.I != (_G * s):
+            # print('I did not match s')
+            return False
+        try:
+            self.ptxt = b64decode(msg[1])
+        except:
+            # print('base64 decode failed')
+            return False
+        self.s = s
         return True
 
-    def export_message(self):
-        return self.export_header() + ':' + self.m['m']
-
     def decode(self, privkey):
-        if ((self.m['I'][0] >> (keys._C['bits'] - keys._masksize)) &
-                privkey.pkey['addr']['mask']) != privkey.pkey['addr']['mtgt']:
+        if not self.is_for(privkey):
+            # print('not for me')
             return False
-        ex = self.export_message()
-        dec = privkey.decode_message(ex)
-        if dec:
-            self.m['to'] = privkey.label()
-            self.m['s'] = dec['s']
-            self.m['body'] = dec['msg']
-            return True
-        else:
-            return False
+        DH = self.K * privkey.current_privkey_val(self.time)
+        return self._decode(DH)
 
     def decode_sent(self, privkey, altK):
-        ex = self.export_message()
-        dec = privkey.decode_sent_message(ex, altK)
-        if dec:
-            self.m['from'] = privkey.pubkey_label()
-            self.m['s'] = dec['s']
-            self.m['body'] = dec['msg']
-            return True
+        DH = altK * self.current_privkey_val(self.time)
+        return self._decode(DH)
+
+    @staticmethod
+    def encode(ptxt, pubkey, privkey=None, progress_callback=None, 
+               ttl=_default_ttl):
+        if ptxt is None or len(ptxt) == 0:
+            print('message of zero length')
+            return None
+        tval = int(time.time())
+        texp = tval + ttl
+        if privkey is None:
+            q = random.randint(2, _C['n']-1)
         else:
-            return False
-
-
-if __name__ == '__main__':  # pragma: no cover
-    import sys
-    import model
-    model.init()
-    sys.setrecursionlimit(512)
-    model.ks.clear()
-    model.ms.clear()
-    model.test_seed_keystore()
-    model.test_seed_messagestore()
-    for m in model.ms.msglist:
-        for pk in model.ks.pvtkeys:
-            print 'trying', pk.label()
-            if m.decode(pk):
-                print 'decoded!!!!!'
-                print m.m
+            q = privkey.current_privkey_val(tval)
+            if q is None:
+                print('privkey is None')
+                return None
+        P = pubkey.current_pubkey_point(tval)
+        if P is None:
+            print('pubkey is None')
+            return None
+        status = {}
+        status['besthash'] = 0
+        status['bestbits'] = _masksize
+        status['nhash'] = 0
+        while True:
+            s = random.randint(2, _C['n']-1)
+            I = _G * s
+            maskval = ((I.affine()[0] >> (_C['bits'] - _masksize)) &
+                       pubkey.addr['mask'])
+            maskmiss = bin(maskval ^ pubkey.addr['mtgt']).count('1')
+            if maskmiss < status['bestbits']:
+                status['bestbits'] = maskmiss
+                status['besthash'] = maskval
+            if maskval == pubkey.addr['mtgt']:
                 break
+            if progress_callback:
+                if (status['nhash'] % 10) == 0:
+                    progress_callback(status)
+            status['nhash'] += 1
+        J = P * s
+        stext = _pfmt % s
+        h = int(hashlib.sha256((stext + ptxt).encode()).hexdigest(), 16)
+        k = (q * h) % _C['n']
+        K = _G * k
+        DH = P * k
+        iv = int(I.compress()[-32:],16)
+        keybin = unhexlify(DH.compress()[-64:])
+        counter = Counter.new(128,initial_value=iv)
+        cryptor = AES.new(keybin, AES.MODE_CTR, counter=counter)
+        msg = (_pfmt % s) + ':' + b64encode(ptxt)
+        ctxt = cryptor.encrypt(msg)
+        altK = P * h
+        z = Message()
+        z.time = tval
+        z.expire = texp
+        z.s = s
+        z.I = I
+        z.J = J
+        z.K = K
+        z.ptxt = ptxt
+        z.ctxt = ctxt
+        z.altK = altK
+        return z
+        
+    @staticmethod
+    def encode_impersonate(ptxt, pubkey, privkey, progress_callback=None, 
+               ttl=_default_ttl):
+        if ptxt is None or len(ptxt) == 0:
+            return False
+        tval = int(time.time())
+        texp = tval + ttl
+        q = privkey.current_privkey_val(tval)
+        if q is None:
+            return False
+        Q = privkey.current_pubkey_point(tval)
+        P = pubkey.current_pubkey_point(tval)
+        if P is None:
+            return False
+        status = {}
+        status['besthash'] = 0
+        status['bestbits'] = _masksize
+        status['nhash'] = 0
+        while True:
+            s = random.randint(2, _C['n']-1)
+            I = _G * s
+            maskval = ((I.affine()[0] >> (_C['bits'] - _masksize)) &
+                       privkey.addr['mask'])
+            maskmiss = bin(maskval ^ privkey.addr['mtgt']).count('1')
+            if maskmiss < status['bestbits']:
+                status['bestbits'] = maskmiss
+                status['besthash'] = maskval
+            if maskval == privkey.addr['mtgt']:
+                break
+            if progress_callback:
+                if (status['nhash'] % 10) == 0:
+                    progress_callback(status)
+            status['nhash'] += 1
+        J = Q * s
+        stext = _pfmt % s
+        h = int(hashlib.sha256((stext + ptxt).encode()).hexdigest(), 16)
+        k = (q * h) % _C['n']
+        K = P * h
+        DH = P * k
+        iv = int(I.compress()[-32:],16)
+        keybin = unhexlify(DH.compress()[-64:])
+        counter = Counter.new(128,initial_value=iv)
+        cryptor = AES.new(keybin, AES.MODE_CTR, counter=counter)
+        msg = (_pfmt % s) + ':' + b64encode(ptxt)
+        ctxt = cryptor.encrypt(msg)
+        altK = Q * h
+        z = Message()
+        z.time = tval
+        z.expire = texp
+        z.s = s
+        z.I = I
+        z.J = J
+        z.K = K
+        z.ptxt = ptxt
+        z.ctxt = ctxt
+        z.altK = altK
+        return z
+
+    def __eq__(self, r):
+        if not super(self.__class__, self).__eq__(r):
+            return False
+        if self.ctxt != r.ctxt:
+            return False
+        return True
+    
+    def __ne__(self, r):
+        return not (self == r)
+
+    def __str__(self):
+        return self.serialize()
+
+    def __repr__(self):
+        return 'Message.deserialize(' + self.serialize() + ')'
+    

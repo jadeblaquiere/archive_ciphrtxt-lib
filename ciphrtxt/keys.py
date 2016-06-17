@@ -46,7 +46,8 @@ _C = curve_secp256k1
 _masksize = min(32, _C['bits'])
 _maskbits = (int((_masksize / 3) + 0))
 
-_G_Pt = Generator.init(_C['G'][0], _C['G'][1])
+Generator.set_curve(_C)
+_G = Generator.init(_C['G'][0], _C['G'][1])
 
 # parameters for time based keys, median = 24h, sd = 4h, min 12h, max 36h
 _tstarget = (60 * 60 * 24)
@@ -55,8 +56,8 @@ _tsmin = (60 * 60 * 12)
 _tsmax = (60 * 60 * 36)
 
 # convert integer to hex string
-_pfmt = '%%0%dx' % (((_C['bits'] + 7) >> 3) << 1)
-_mfmt = '%%0%dx' % (((_masksize + 7) >> 3) << 1)
+_pfmt = b'%%0%dx' % (((_C['bits'] + 7) >> 3) << 1)
+_mfmt = b'%%0%dx' % (((_masksize + 7) >> 3) << 1)
 
 # v1.0 in fixed point
 _format_version = 0x0100
@@ -86,6 +87,8 @@ class PublicKey (object):
         self.name = name
         self.metadata = {}
         self.initialized = False
+        self.last_steps = None
+        self.last_pubkey_point = None
 
     def set_metadata(self, metakey, metavalue):
         self.metadata[metakey] = metavalue
@@ -102,34 +105,41 @@ class PublicKey (object):
         return txt
 
     def current_pubkey_point(self, timeval=None):
+        """Calulates the current EC public key point as a pseudorandom linear
+        combination of the primary P key and multiple time-based T keys using
+        an algorithm based on HOTP/TOTP"""
         if not self.initialized:
             return None
         if timeval is None:
             timeval = int(time.time())
         steps = (timeval - self.t0) / self.ts
+        if steps == self.last_steps:
+            return self.last_pubkey_point
         P = self.P
-        for i in range(len(self.tbk)):
-            okeyt = _pfmt % (self.tbk[i]['otp'])
+        for i in range(len(self.Tbk)):
+            okeyt = _pfmt % (self.Tbk[i]['otp'])
             stepsd = '%07d' % (steps % 10000000)
             otphmac = hmac.new(okeyt.encode(), stepsd.encode(), hashlib.sha256)
             hashv = otphmac.hexdigest()
             hashi = int(hashv, 16) % _C['p']
             S = (self.Tbk[i]['T']) * hashi
             P = S + P
+        self.last_steps = steps
+        self.last_pubkey_point = P
         return P
 
     def serialize_pubkey(self):
-        ekey = 'P%04x' % _format_version
-        ekey += ':K' + str(self.P)
-        ekey += ':M' + (_mfmt % self.addr['mask'])
-        ekey += ':N' + (_mfmt % self.addr['mtgt'])
-        ekey += ':Z' + ('%08x' % self.t0)
-        ekey += ':S' + ('%08x' % self.ts)
-        ekey += ':R' + ('%04x' % len(self.Tbk))
+        ekey = b'P%04x' % _format_version
+        ekey += b':K' + str(self.P)
+        ekey += b':M' + (_mfmt % self.addr['mask'])
+        ekey += b':N' + (_mfmt % self.addr['mtgt'])
+        ekey += b':Z' + (b'%08x' % self.t0)
+        ekey += b':S' + (b'%08x' % self.ts)
+        ekey += b':R' + (b'%04x' % len(self.Tbk))
         for Tbk in self.Tbk:
-            ekey += ':F' + (_pfmt % Tbk['otp'])
-            ekey += ':T' + str(Tbk['T'])
-        ekey += ':C' + hashlib.sha256(ekey.encode()).hexdigest()[-8:]
+            ekey += b':F' + (_pfmt % Tbk['otp'])
+            ekey += b':T' + str(Tbk['T'])
+        ekey += b':C' + hashlib.sha256(ekey.encode()).hexdigest()[-8:]
         return ekey
 
     def serialize(self):
@@ -189,6 +199,8 @@ class PrivateKey (PublicKey):
         self.tbk = ({'otp': 0, 't': 0})
         self.initialized = False
         super(self.__class__, self).__init__(name=name)
+        self.last_psteps = None
+        self.last_privkey_val = None
 
     def label(self):
         txt = (_pfmt % self.p)[:8]
@@ -236,20 +248,25 @@ class PrivateKey (PublicKey):
         self.initialized = True
 
     def calc_public_key(self):
-        self.P = _G_Pt * self.p
+        self.P = _G * self.p
         self.Tbk = []
         for i in range(len(self.tbk)):
             Tbk = {}
             Tbk['otp'] = self.tbk[i]['otp']
-            Tbk['T'] = _G_Pt * self.tbk[i]['t']
+            Tbk['T'] = _G * self.tbk[i]['t']
             self.Tbk.append(Tbk)
 
     def current_privkey_val(self, timeval=None):
+        """Calulates the current EC private key value as a pseudorandom linear
+        combination of the primary p key and multiple time-based t keys using
+        an algorithm based on HOTP/TOTP"""
         if not self.initialized:
             return None
         if timeval is None:
             timeval = int(time.time())
         steps = (timeval - self.t0) / self.ts
+        if steps == self.last_psteps:
+            return self.last_privkey_val
         p = self.p
         for i in range(len(self.tbk)):
             okeyt = _pfmt % (self.tbk[i]['otp'])
@@ -259,6 +276,8 @@ class PrivateKey (PublicKey):
             hashi = int(hashv, 16) % _C['p']
             s = (self.tbk[i]['t'] * hashi) % _C['n']
             p = (s + p) % _C['n']
+        self.last_psteps = steps
+        self.last_privkey_val = p
         return p
 
     def serialize_privkey(self):
