@@ -31,6 +31,11 @@ from Crypto.Random import random
 from ciphrtxt.keys import PublicKey, PrivateKey
 from ciphrtxt.message import Message, MessageHeader
 
+def progress(status):
+    print("hash = %x, %d bits, %d iterations" % (status['besthash'], 
+                                                 status['bestbits'],
+                                                 status['nhash']))
+
 pkey = []
 Pkey = []
 
@@ -48,13 +53,13 @@ bobP = PublicKey.deserialize(bob.serialize_pubkey())
 print('keys complete')
 
 mtxt = 'the quick brown fox jumped over the lazy dog'
-msg1 = Message.encode(mtxt, bobP, alice)
+msg1 = Message.encode(mtxt, bobP, alice, progress_callback=progress)
 print('message1 = ' + msg1.serialize())
 msg1a = Message.deserialize(msg1.serialize())
 print('message1a = ' + msg1a.serialize())
 if msg1a.decode(bob):
     print('decoded:', msg1a.ptxt)
-msg2 = Message.encode_impersonate(mtxt, aliceP, bob)
+msg2 = Message.encode_impersonate(mtxt, aliceP, bob, progress_callback=progress)
 print('message2 = ' + msg2.serialize())
 msg2a = Message.deserialize(msg2.serialize())
 print('message2a = ' + msg1a.serialize())
