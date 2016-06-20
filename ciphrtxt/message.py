@@ -141,27 +141,35 @@ class Message (MessageHeader):
         self.ptxt = None
         self.ctxt = None
         self.altK = None
+        self.sig = None
         if cmsg is not None:
             self.import_message(cmsg)
 
     @staticmethod
     def deserialize(cmsg):
         hdrdata = cmsg.split(':')
-        if len(hdrdata) != 7:
+        if len(hdrdata) != 9:
             return None
         z = Message()
         if not z._deserialize_header(cmsg[:_header_size]):
             return None
         try:
-            z.ctxt = b64decode(hdrdata[6])
+            z.sig = (int(hdrdata[6], 16), int(hdrdata[7], 16))
+            z.ctxt = b64decode(hdrdata[8])
         except:
             return None
         return z
 
     def serialize(self):
-        return self._serialize_header() + ':' + b64encode(self.ctxt)
+        return (self._serialize_header() + ':' + _pfmt % self.sig[0] + ':' +
+                _pfmt % self.sig[1] + ':' + b64encode(self.ctxt))
 
     def _decode(self,DH):
+        sigpriv = int(hashlib.sha256((DH.compress()).encode()).hexdigest(), 16) % _C['n']
+        sigpub = _G * sigpriv
+        if not _ecdsa.verify(sigpub, self.sig, self.ctxt, self._serialize_header()):
+            #print('signature error, aborting decode')
+            return False
         iv = int(self.I.compress()[-32:],16)
         keybin = unhexlify(DH.compress()[-64:])
         counter = Counter.new(128,initial_value=iv)
@@ -269,6 +277,9 @@ class Message (MessageHeader):
         z.ptxt = ptxt
         z.ctxt = ctxt
         z.altK = altK
+        header = z._serialize_header()
+        sigpriv = int(hashlib.sha256((DH.compress()).encode()).hexdigest(), 16) % _C['n']
+        z.sig = _ecdsa.sign(sigpriv, ctxt, header)
         return z
         
     @staticmethod
@@ -327,6 +338,9 @@ class Message (MessageHeader):
         z.ptxt = ptxt
         z.ctxt = ctxt
         z.altK = altK
+        header = z._serialize_header()
+        sigkey = int(hashlib.sha256((DH.compress()).encode()).hexdigest(), 16) % _C['n']
+        z.sig = _ecdsa.sign(sigkey, ctxt, header)
         return z
 
     def __eq__(self, r):

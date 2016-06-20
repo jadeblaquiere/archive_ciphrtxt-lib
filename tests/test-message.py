@@ -83,23 +83,48 @@ for i in range(0,test_msgs):
         ztxt += mtxt
     f = random.randint(0,test_keys-1)
     t = random.randint(0,test_keys-1)
+    # encode "from"
     m = Message.encode(ztxt, Pkey[t], pkey[f])
+    # encode reversed - impersonate sender from pubkey
     mi = Message.encode_impersonate(ztxt, Pkey[f], pkey[t])
+    # encode anonymous - randomized send addr
+    ma = Message.encode(ztxt, Pkey[t])
     ms = m.serialize()
     mis = mi.serialize()
+    mas = ma.serialize()
     print('msg  ' + str(i) + ' = ' + ms)
     print('msgi ' + str(i) + ' = ' + mis)
+    print('msga ' + str(i) + ' = ' + mas)
     md = Message.deserialize(ms)
     mid = Message.deserialize(mis)
+    mad = Message.deserialize(mas)
     assert md.decode(pkey[t])
     assert md.decode_sent(pkey[f], m.altK)
     assert mid.decode(pkey[t])
     assert mid.decode_sent(pkey[f], mi.altK)
+    assert mad.decode(pkey[t])
+    assert not mad.decode_sent(pkey[f], ma.altK)
+    # tampered/error messages should fail based on signature
+    mdte = Message.deserialize(ms)
+    mdte.time += 1
+    mdee = Message.deserialize(ms)
+    mdee.expire += 1
+    mdie = Message.deserialize(ms)
+    mdie.I = mdie.I * 2
+    mdie.J = mdie.J * 2
+    mdct = Message.deserialize(ms)
+    mdct.ctxt = mdct.ctxt[:-1]
     print('mtxt = ' + md.ptxt)
     for j in range(0,test_keys):
         if j != t:
             assert not md.decode(pkey[j])
             assert not mid.decode(pkey[j])
+            assert not mad.decode(pkey[j])
         if j != f:
             assert not md.decode_sent(pkey[j], m.altK)
             assert not mid.decode_sent(pkey[j], mi.altK)
+        assert not mad.decode_sent(pkey[j], ma.altK)
+        assert not mdte.decode(pkey[j])
+        assert not mdee.decode(pkey[j])
+        assert not mdie.decode(pkey[j])
+        assert not mdct.decode(pkey[j])
