@@ -11,7 +11,7 @@
 #   this list of conditions and the following disclaimer in the documentation
 #   and/or other materials provided with the distribution.
 #
-# * Neither the name of ecpy nor the names of its
+# * Neither the name of ciphrtxt nor the names of its
 #   contributors may be used to endorse or promote products derived from
 #   this software without specific prior written permission.
 #
@@ -54,15 +54,15 @@ print('keys complete')
 
 mtxt = 'the quick brown fox jumped over the lazy dog'
 msg1 = Message.encode(mtxt, bobP, alice, progress_callback=progress)
-print('message1 = ' + msg1.serialize())
+print('message1 = ' + str(msg1))
 msg1a = Message.deserialize(msg1.serialize())
-print('message1a = ' + msg1a.serialize())
+print('message1a = ' + str(msg1a))
 if msg1a.decode(bob):
     print('decoded:', msg1a.ptxt)
 msg2 = Message.encode_impersonate(mtxt, aliceP, bob, progress_callback=progress)
-print('message2 = ' + msg2.serialize())
+print('message2 = ' + str(msg2))
 msg2a = Message.deserialize(msg2.serialize())
-print('message2a = ' + msg1a.serialize())
+print('message2a = ' + str(msg1a))
 if msg2a.decode(bob):
     print('decoded:', msg1a.ptxt)
 
@@ -92,18 +92,21 @@ for i in range(0,test_msgs):
     ms = m.serialize()
     mis = mi.serialize()
     mas = ma.serialize()
-    print('msg  ' + str(i) + ' = ' + ms)
-    print('msgi ' + str(i) + ' = ' + mis)
-    print('msga ' + str(i) + ' = ' + mas)
+    print('msg  ' + str(i) + ' = ' + ms.decode())
+    print('msgi ' + str(i) + ' = ' + mis.decode())
+    print('msga ' + str(i) + ' = ' + mas.decode())
     md = Message.deserialize(ms)
     mid = Message.deserialize(mis)
     mad = Message.deserialize(mas)
     assert md.decode(pkey[t])
     assert md.decode_sent(pkey[f], m.altK)
+    assert md.is_from(Pkey[f])
     assert mid.decode(pkey[t])
     assert mid.decode_sent(pkey[f], mi.altK)
+    assert mid.is_from(Pkey[f])
     assert mad.decode(pkey[t])
     assert not mad.decode_sent(pkey[f], ma.altK)
+    assert not mad.is_from(Pkey[f])
     # tampered/error messages should fail based on signature
     mdte = Message.deserialize(ms)
     mdte.time += 1
@@ -123,8 +126,11 @@ for i in range(0,test_msgs):
         if j != f:
             assert not md.decode_sent(pkey[j], m.altK)
             assert not mid.decode_sent(pkey[j], mi.altK)
+            assert not md.is_from(Pkey[j])
+            assert not mid.is_from(Pkey[j])
         assert not mad.decode_sent(pkey[j], ma.altK)
         assert not mdte.decode(pkey[j])
         assert not mdee.decode(pkey[j])
         assert not mdie.decode(pkey[j])
         assert not mdct.decode(pkey[j])
+        assert not mad.is_from(Pkey[j])

@@ -11,7 +11,7 @@
 #   this list of conditions and the following disclaimer in the documentation
 #   and/or other materials provided with the distribution.
 #
-# * Neither the name of ecpy nor the names of its
+# * Neither the name of ciphrtxt nor the names of its
 #   contributors may be used to endorse or promote products derived from
 #   this software without specific prior written permission.
 #
@@ -50,7 +50,7 @@ bob = PrivateKey()
 for i in range(100):
     alice.randomize(4)
     bob.randomize(4)
-    print('p=', alice.serialize_privkey())
+    print('p= ' + str(alice))
     ex = alice.serialize_pubkey()
     print('P=', str(ex))
     print('\n')

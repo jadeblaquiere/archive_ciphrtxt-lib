@@ -26,4 +26,25 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-__version__ = 0.11
+from ciphrtxt.keys import PrivateKey
+from ciphrtxt.topic import TopicKey
+from ciphrtxt.message import Message
+
+topics = [ "#ciphrtxt", "#crypto", "#privacy", "#privacz", "#security", "#securitz" ]
+
+ptext = 'the quick brown fox jumped over the lazy dog'
+
+pkey = PrivateKey()
+pkey.randomize()
+
+for topic in topics:
+    k = TopicKey(topic)
+    print('topic = ' + topic)
+    print('key = ' + str(k))
+    assert k is not None
+    m = Message.encode(ptext, k)
+    assert m is not None
+    print('encoded = ' + str(m))
+    assert m.decode(k)
+    print('decoded = ' + m.ptxt)
+    

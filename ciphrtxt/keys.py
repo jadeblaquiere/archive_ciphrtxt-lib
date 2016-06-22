@@ -1,5 +1,4 @@
 # Copyright (c) 2016, Joseph deBlaquiere <jadeblaquiere@yahoo.com>
-# All rights reserved
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -11,7 +10,7 @@
 #   this list of conditions and the following disclaimer in the documentation
 #   and/or other materials provided with the distribution.
 #
-# * Neither the name of ecpy nor the names of its
+# * Neither the name of ciphrtxt nor the names of its
 #   contributors may be used to endorse or promote products derived from
 #   this software without specific prior written permission.
 #
@@ -118,8 +117,8 @@ class PublicKey (object):
         P = self.P
         for i in range(len(self.Tbk)):
             okeyt = _pfmt % (self.Tbk[i]['otp'])
-            stepsd = '%07d' % (steps % 10000000)
-            otphmac = hmac.new(okeyt.encode(), stepsd.encode(), hashlib.sha256)
+            stepsd = b'%07d' % (steps % 10000000)
+            otphmac = hmac.new(okeyt, stepsd, hashlib.sha256)
             hashv = otphmac.hexdigest()
             hashi = int(hashv, 16) % _C['p']
             S = (self.Tbk[i]['T']) * hashi
@@ -130,7 +129,7 @@ class PublicKey (object):
 
     def serialize_pubkey(self):
         ekey = b'P%04x' % _format_version
-        ekey += b':K' + str(self.P)
+        ekey += b':K' + self.P.compress()
         ekey += b':M' + (_mfmt % self.addr['mask'])
         ekey += b':N' + (_mfmt % self.addr['mtgt'])
         ekey += b':Z' + (b'%08x' % self.t0)
@@ -138,8 +137,8 @@ class PublicKey (object):
         ekey += b':R' + (b'%04x' % len(self.Tbk))
         for Tbk in self.Tbk:
             ekey += b':F' + (_pfmt % Tbk['otp'])
-            ekey += b':T' + str(Tbk['T'])
-        ekey += b':C' + hashlib.sha256(ekey.encode()).hexdigest()[-8:]
+            ekey += b':T' + Tbk['T'].compress()
+        ekey += b':C' + (hashlib.sha256(ekey).hexdigest()[-8:]).encode()
         return ekey
 
     def serialize(self):
@@ -148,23 +147,23 @@ class PublicKey (object):
     @staticmethod
     def deserialize(ikey):
         # verify checksum
-        inp = ikey.split(':C')
+        inp = ikey.split(b':C')
         if len(inp) != 2:
             return None
-        ckck = hashlib.sha256(inp[0].encode()).hexdigest()[-8:]
+        ckck = hashlib.sha256(inp[0]).hexdigest()[-8:].encode()
         if ckck != inp[1]:
             return None
         # verify keys
-        inp = inp[0].split(':')
+        inp = inp[0].split(b':')
         if len(inp) < 7:
             return None
-        if ((inp[0][:1] != 'P') or (inp[1][:1] != 'K') or
-                (inp[2][:1] != 'M') or (inp[3][:1] != 'N') or
-                (inp[4][:1] != 'Z') or (inp[5][:1] != 'S') or
-                (inp[6][:1] != 'R')):
+        if ((inp[0][:1] != b'P') or (inp[1][:1] != b'K') or
+                (inp[2][:1] != b'M') or (inp[3][:1] != b'N') or
+                (inp[4][:1] != b'Z') or (inp[5][:1] != b'S') or
+                (inp[6][:1] != b'R')):
             return None
         # verify version
-        if (inp[0][1:] != '0100'):
+        if (inp[0][1:] != b'0100'):
             return None
         # decompress point
         z = PublicKey()
@@ -187,7 +186,7 @@ class PublicKey (object):
         return z
     
     def __str__(self):
-        return self.serialize()
+        return self.serialize().decode()
     
     def __repr__(self):
         return 'PublicKey.deserialize(' + self.serialize() + ')'
@@ -198,7 +197,7 @@ class PrivateKey (PublicKey):
         self.p = 0
         self.tbk = ({'otp': 0, 't': 0})
         self.initialized = False
-        super(self.__class__, self).__init__(name=name)
+        super(PrivateKey, self).__init__(name=name)
         self.last_psteps = None
         self.last_privkey_val = None
 
@@ -270,8 +269,8 @@ class PrivateKey (PublicKey):
         p = self.p
         for i in range(len(self.tbk)):
             okeyt = _pfmt % (self.tbk[i]['otp'])
-            stepsd = '%07d' % (steps % 10000000)
-            otphmac = hmac.new(okeyt.encode(), stepsd.encode(), hashlib.sha256)
+            stepsd = b'%07d' % (steps % 10000000)
+            otphmac = hmac.new(okeyt, stepsd, hashlib.sha256)
             hashv = otphmac.hexdigest()
             hashi = int(hashv, 16) % _C['p']
             s = (self.tbk[i]['t'] * hashi) % _C['n']
@@ -281,17 +280,17 @@ class PrivateKey (PublicKey):
         return p
 
     def serialize_privkey(self):
-        ekey = 'p%04x' % _format_version
-        ekey += ':k' + (_pfmt % self.p)
-        ekey += ':m' + (_mfmt % self.addr['mask'])
-        ekey += ':n' + (_mfmt % self.addr['mtgt'])
-        ekey += ':z' + ('%08x' % self.t0)
-        ekey += ':s' + ('%08x' % self.ts)
-        ekey += ':r' + ('%04x' % len(self.tbk))
+        ekey = b'p%04x' % _format_version
+        ekey += b':k' + (_pfmt % self.p)
+        ekey += b':m' + (_mfmt % self.addr['mask'])
+        ekey += b':n' + (_mfmt % self.addr['mtgt'])
+        ekey += b':z' + (b'%08x' % self.t0)
+        ekey += b':s' + (b'%08x' % self.ts)
+        ekey += b':r' + (b'%04x' % len(self.tbk))
         for tbk in self.tbk:
-            ekey += ':f' + (_pfmt % tbk['otp'])
-            ekey += ':t' + (_pfmt % tbk['t'])
-        ekey += ':c' + hashlib.sha256(ekey.encode()).hexdigest()[-8:]
+            ekey += b':f' + (_pfmt % tbk['otp'])
+            ekey += b':t' + (_pfmt % tbk['t'])
+        ekey += b':c' + (hashlib.sha256(ekey).hexdigest()[-8:]).encode()
         return ekey
 
     def serialize(self):
@@ -300,23 +299,23 @@ class PrivateKey (PublicKey):
     @staticmethod
     def deserialize(ikey):
         # verify checksum
-        inp = ikey.split(':c')
+        inp = ikey.split(b':c')
         if len(inp) != 2:
             return None
-        ckck = hashlib.sha256(inp[0].encode()).hexdigest()[-8:]
+        ckck = hashlib.sha256(inp[0]).hexdigest()[-8:].encode()
         if ckck != inp[1]:
             return None
         # verify keys
-        inp = inp[0].split(':')
+        inp = inp[0].split(b':')
         if len(inp) < 7:
             return None
-        if ((inp[0][:1] != 'p') or (inp[1][:1] != 'k') or
-                (inp[2][:1] != 'm') or (inp[3][:1] != 'n') or
-                (inp[4][:1] != 'z') or (inp[5][:1] != 's') or
-                (inp[6][:1] != 'r')):
+        if ((inp[0][:1] != b'p') or (inp[1][:1] != b'k') or
+                (inp[2][:1] != b'm') or (inp[3][:1] != b'n') or
+                (inp[4][:1] != b'z') or (inp[5][:1] != b's') or
+                (inp[6][:1] != b'r')):
             return None
         # verify version
-        if (inp[0][1:] != '0100'):
+        if (inp[0][1:] != b'0100'):
             return None
         z = PrivateKey()
         z.p = int(inp[1][1:], 16)
@@ -338,7 +337,7 @@ class PrivateKey (PublicKey):
         return z
 
     def __str__(self):
-        return self.serialize()
+        return self.serialize().decode()
     
     def __repr__(self):
         return 'PrivateKey.deserialize(' + self.serialize() + ')'

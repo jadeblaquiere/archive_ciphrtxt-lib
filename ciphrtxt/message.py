@@ -1,5 +1,4 @@
 # Copyright (c) 2016, Joseph deBlaquiere <jadeblaquiere@yahoo.com>
-# All rights reserved
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -11,7 +10,7 @@
 #   this list of conditions and the following disclaimer in the documentation
 #   and/or other materials provided with the distribution.
 #
-# * Neither the name of ecpy nor the names of its
+# * Neither the name of ciphrtxt nor the names of its
 #   contributors may be used to endorse or promote products derived from
 #   this software without specific prior written permission.
 #
@@ -30,7 +29,7 @@ import ciphrtxt.keys as keys
 from binascii import hexlify, unhexlify
 from base64 import b64encode, b64decode
 import time
-import hashlib
+from hashlib import sha256
 
 from Crypto.Random import random
 from Crypto.Cipher import AES
@@ -73,9 +72,9 @@ class MessageHeader (object):
         self.K = None
 
     def _serialize_header(self):
-        hdr = _msg_api_ver + ':' + ('%08X' % self.time) + ':'
-        hdr += ('%08X' % self.expire) + ':' + self.I.compress() + ':'
-        hdr += self.J.compress() + ':' + self.K.compress()
+        hdr = _msg_api_ver + b':' + (b'%08X' % self.time) + b':'
+        hdr += (b'%08X' % self.expire) + b':' + self.I.compress() + b':'
+        hdr += self.J.compress() + b':' + self.K.compress()
         return hdr
 
     def serialize(self):
@@ -92,7 +91,7 @@ class MessageHeader (object):
     def _deserialize_header(self, cmsg):
         if len(cmsg) < _header_size:
             return False
-        hdrdata = cmsg[:_header_size].split(':')
+        hdrdata = cmsg[:_header_size].split(b':')
         if len(hdrdata) != 6:
             return False
         if hdrdata[0] != _msg_api_ver:
@@ -127,7 +126,7 @@ class MessageHeader (object):
         return not (self == h)
 
     def __str__(self):
-        return self.serialize()
+        return self.serialize().decode()
 
     def __repr__(self):
         return 'MessageHeader.deserialize('+ self.serialize() + ')'
@@ -136,18 +135,19 @@ class MessageHeader (object):
 
 class Message (MessageHeader):
     def __init__(self, cmsg=None):
-        super(self.__class__, self).__init__()
+        super(Message, self).__init__()
         self.s = None
         self.ptxt = None
         self.ctxt = None
         self.altK = None
         self.sig = None
+        self.h = None
         if cmsg is not None:
             self.import_message(cmsg)
 
     @staticmethod
     def deserialize(cmsg):
-        hdrdata = cmsg.split(':')
+        hdrdata = cmsg.split(b':')
         if len(hdrdata) != 9:
             return None
         z = Message()
@@ -161,13 +161,13 @@ class Message (MessageHeader):
         return z
 
     def serialize(self):
-        return (self._serialize_header() + ':' + _pfmt % self.sig[0] + ':' +
-                _pfmt % self.sig[1] + ':' + b64encode(self.ctxt))
+        return (self._serialize_header() + b':' + _pfmt % self.sig[0] + b':' +
+                _pfmt % self.sig[1] + b':' + b64encode(self.ctxt))
 
     def _decode(self,DH):
-        sigpriv = int(hashlib.sha256((DH.compress()).encode()).hexdigest(), 16) % _C['n']
-        sigpub = _G * sigpriv
-        if not _ecdsa.verify(sigpub, self.sig, self.ctxt, self._serialize_header()):
+        sp = int(sha256(DH.compress()).hexdigest(), 16) % _C['n']
+        SP = _G * sp
+        if not _ecdsa.verify(SP, self.sig, self.ctxt, self._serialize_header()):
             #print('signature error, aborting decode')
             return False
         iv = int(self.I.compress()[-32:],16)
@@ -175,7 +175,7 @@ class Message (MessageHeader):
         counter = Counter.new(128,initial_value=iv)
         cryptor = AES.new(keybin, AES.MODE_CTR, counter=counter)
         etxt = cryptor.decrypt(self.ctxt)
-        msg = etxt.split(':')
+        msg = etxt.split(b':')
         if len(msg) != 2:
             # print('split failed')
             return False
@@ -193,9 +193,12 @@ class Message (MessageHeader):
         try:
             self.ptxt = b64decode(msg[1])
         except:
-            # print('base64 decode failed')
+            print('base64 decode failed')
             return False
+        self.ptxt = self.ptxt.decode()
         self.s = s
+        stext = _pfmt % s
+        self.h = int(sha256(stext + self.ptxt.encode()).hexdigest(), 16)
         return True
 
     def decode(self, privkey):
@@ -256,7 +259,7 @@ class Message (MessageHeader):
             status['nhash'] += 1
         J = P * s
         stext = _pfmt % s
-        h = int(hashlib.sha256((stext + ptxt).encode()).hexdigest(), 16)
+        h = int(sha256(stext + ptxt.encode()).hexdigest(), 16)
         k = (q * h) % _C['n']
         K = _G * k
         DH = P * k
@@ -264,7 +267,7 @@ class Message (MessageHeader):
         keybin = unhexlify(DH.compress()[-64:])
         counter = Counter.new(128,initial_value=iv)
         cryptor = AES.new(keybin, AES.MODE_CTR, counter=counter)
-        msg = (_pfmt % s) + ':' + b64encode(ptxt)
+        msg = (_pfmt % s) + b':' + b64encode(ptxt.encode())
         ctxt = cryptor.encrypt(msg)
         altK = P * h
         z = Message()
@@ -277,8 +280,9 @@ class Message (MessageHeader):
         z.ptxt = ptxt
         z.ctxt = ctxt
         z.altK = altK
+        z.h = h
         header = z._serialize_header()
-        sigpriv = int(hashlib.sha256((DH.compress()).encode()).hexdigest(), 16) % _C['n']
+        sigpriv = int(sha256(DH.compress()).hexdigest(), 16) % _C['n']
         z.sig = _ecdsa.sign(sigpriv, ctxt, header)
         return z
         
@@ -317,7 +321,7 @@ class Message (MessageHeader):
             status['nhash'] += 1
         J = Q * s
         stext = _pfmt % s
-        h = int(hashlib.sha256((stext + ptxt).encode()).hexdigest(), 16)
+        h = int(sha256(stext + ptxt.encode()).hexdigest(), 16)
         k = (q * h) % _C['n']
         K = P * h
         DH = P * k
@@ -325,7 +329,7 @@ class Message (MessageHeader):
         keybin = unhexlify(DH.compress()[-64:])
         counter = Counter.new(128,initial_value=iv)
         cryptor = AES.new(keybin, AES.MODE_CTR, counter=counter)
-        msg = (_pfmt % s) + ':' + b64encode(ptxt)
+        msg = (_pfmt % s) + b':' + b64encode(ptxt.encode())
         ctxt = cryptor.encrypt(msg)
         altK = Q * h
         z = Message()
@@ -339,9 +343,15 @@ class Message (MessageHeader):
         z.ctxt = ctxt
         z.altK = altK
         header = z._serialize_header()
-        sigkey = int(hashlib.sha256((DH.compress()).encode()).hexdigest(), 16) % _C['n']
+        sigkey = int(sha256(DH.compress()).hexdigest(), 16) % _C['n']
         z.sig = _ecdsa.sign(sigkey, ctxt, header)
         return z
+
+    def is_from(self, pubkey):
+        if self.h is None:
+            return False
+        Q = self.h * pubkey.current_pubkey_point(self.time)
+        return Q == self.K
 
     def __eq__(self, r):
         if not super(self.__class__, self).__eq__(r):
@@ -354,7 +364,7 @@ class Message (MessageHeader):
         return not (self == r)
 
     def __str__(self):
-        return self.serialize()
+        return self.serialize().decode()
 
     def __repr__(self):
         return 'Message.deserialize(' + self.serialize() + ')'
