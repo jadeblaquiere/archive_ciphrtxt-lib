@@ -53,7 +53,7 @@ class NAK(object):
         if privkey is not None and pubkey is None:
             self.pubkey = NAK.G * privkey
         if self.pubkey is not None:
-            self.pubkeyb = unhexlify(self.pubkey.compress().encode('UTF-8'))
+            self.pubkeyb = unhexlify(self.pubkey.compress())
         else:
             self.pubkeyb = None
 
@@ -120,18 +120,18 @@ class NAK(object):
     def sign(self,message):
         if self.privkey is None:
             return None
-        return NAK.ecdsa.sign(self.privkey, message)
+        return NAK.ecdsa.sign(self.privkey, message.encode('UTF8'))
 
     def verify(self,signature,message):
         if self.pubkey is None:
             return False
-        return NAK.ecdsa.verify(self.pubkey, signature, message)
+        return NAK.ecdsa.verify(self.pubkey, signature, message.encode('UTF-8'))
 
     def pubkeybin(self):
         if self.pubkeyb is not None:
             return self.pubkeyb
         if self.pubkey is not None:
-            self.pubkeybin = unhexlify(self.pubkey.compress().encode('UTF-8'))
+            self.pubkeyb = unhexlify(self.pubkey.compress())
             return self.pubkeyb
         return None
 
