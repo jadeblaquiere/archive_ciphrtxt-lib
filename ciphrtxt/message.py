@@ -126,6 +126,26 @@ class MessageHeader (object):
     def __ne__(self, h):
         return not (self == h)
 
+    def __gt__(self, h):
+        if self.time > h.time:
+            return True
+        if self.time < h.time:
+            return False
+        return self.I.compress() > h.I.compress()
+
+    def __lt__(self, h):
+        if self.time < h.time:
+            return True
+        if self.time > h.time:
+            return False
+        return self.I.compress() < h.I.compress()
+
+    def __ge__(self, h):
+        return not self < h
+
+    def __le__(self, h):
+        return not self > h
+
     def __str__(self):
         return self.serialize().decode()
 
@@ -355,7 +375,7 @@ class Message (MessageHeader):
         return Q == self.K
 
     def __eq__(self, r):
-        if not super(self.__class__, self).__eq__(r):
+        if not super(Message, self).__eq__(r):
             return False
         if self.ctxt != r.ctxt:
             return False

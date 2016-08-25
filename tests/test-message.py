@@ -66,6 +66,16 @@ print('message2a = ' + str(msg1a))
 if msg2a.decode(bob):
     print('decoded:', msg1a.ptxt)
 
+assert (msg1 != msg2)
+if msg1 > msg2:
+    assert msg2 < msg1
+    assert msg1 >= msg2
+    assert not msg1 <= msg2
+else:
+    assert not msg2 < msg1
+    assert not msg1 >= msg2
+    assert msg1 <= msg2
+
 print('generating %d test keys' % test_keys)
     
 for i in range(0,test_keys):
@@ -98,6 +108,7 @@ for i in range(0,test_msgs):
     md = Message.deserialize(ms)
     mid = Message.deserialize(mis)
     mad = Message.deserialize(mas)
+    
     assert md.decode(pkey[t])
     assert md.decode_sent(pkey[f], m.altK)
     assert md.is_from(Pkey[f])
@@ -107,6 +118,17 @@ for i in range(0,test_msgs):
     assert mad.decode(pkey[t])
     assert not mad.decode_sent(pkey[f], ma.altK)
     assert not mad.is_from(Pkey[f])
+    
+    assert (m != mi)
+    if m > mi:
+        assert mi < m
+        assert m >= mi
+        assert not m <= mi
+    else:
+        assert not mi < m
+        assert not m >= mi
+        assert m <= mi
+
     # tampered/error messages should fail based on signature
     mdte = Message.deserialize(ms)
     mdte.time += 1
