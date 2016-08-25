@@ -56,8 +56,8 @@ ECDSA.set_generator(_G)
 _ecdsa = ECDSA()
 
 # convert integer to hex string
-_pfmt = b'%%0%dx' % (((_C['bits'] + 7) >> 3) << 1)
-_mfmt = b'%%0%dx' % (((_masksize + 7) >> 3) << 1)
+_pfmt = '%%0%dx' % (((_C['bits'] + 7) >> 3) << 1)
+_mfmt = '%%0%dx' % (((_masksize + 7) >> 3) << 1)
 
 _header_size = (5+1+8+1+8+1+66+1+66+1+66)
 _header_size_w_sig = (5+1+8+1+8+1+66+1+66+1+66+1+64+1+64)
@@ -73,8 +73,8 @@ class MessageHeader (object):
         self.K = None
 
     def _serialize_header(self):
-        hdr = _msg_api_ver + b':' + (b'%08X' % self.time) + b':'
-        hdr += (b'%08X' % self.expire) + b':' + self.I.compress() + b':'
+        hdr = _msg_api_ver + b':' + ('%08X' % self.time).encode() + b':'
+        hdr += ('%08X' % self.expire).encode() + b':' + self.I.compress() + b':'
         hdr += self.J.compress() + b':' + self.K.compress()
         return hdr
 
@@ -162,8 +162,8 @@ class Message (MessageHeader):
         return z
 
     def serialize(self):
-        return (self._serialize_header() + b':' + _pfmt % self.sig[0] + b':' +
-                _pfmt % self.sig[1] + b':' + b64encode(self.ctxt))
+        return (self._serialize_header() + b':' + (_pfmt % self.sig[0]).encode() + b':' +
+                (_pfmt % self.sig[1]).encode() + b':' + b64encode(self.ctxt))
 
     def _decode(self,DH):
         sp = int(sha256(DH.compress()).hexdigest(), 16) % _C['n']
@@ -198,7 +198,7 @@ class Message (MessageHeader):
             return False
         self.ptxt = self.ptxt.decode()
         self.s = s
-        stext = _pfmt % s
+        stext = (_pfmt % s).encode()
         self.h = int(sha256(stext + self.ptxt.encode()).hexdigest(), 16)
         return True
 
@@ -259,7 +259,7 @@ class Message (MessageHeader):
                     progress_callback(status)
             status['nhash'] += 1
         J = P * s
-        stext = _pfmt % s
+        stext = (_pfmt % s).encode()
         h = int(sha256(stext + ptxt.encode()).hexdigest(), 16)
         k = (q * h) % _C['n']
         K = _G * k
@@ -268,7 +268,7 @@ class Message (MessageHeader):
         keybin = unhexlify(DH.compress()[-64:])
         counter = Counter.new(128,initial_value=iv)
         cryptor = AES.new(keybin, AES.MODE_CTR, counter=counter)
-        msg = (_pfmt % s) + b':' + b64encode(ptxt.encode())
+        msg = (_pfmt % s).encode() + b':' + b64encode(ptxt.encode())
         ctxt = cryptor.encrypt(msg)
         altK = P * h
         z = Message()
@@ -321,7 +321,7 @@ class Message (MessageHeader):
                     progress_callback(status)
             status['nhash'] += 1
         J = Q * s
-        stext = _pfmt % s
+        stext = (_pfmt % s).encode()
         h = int(sha256(stext + ptxt.encode()).hexdigest(), 16)
         k = (q * h) % _C['n']
         K = P * h
@@ -330,7 +330,7 @@ class Message (MessageHeader):
         keybin = unhexlify(DH.compress()[-64:])
         counter = Counter.new(128,initial_value=iv)
         cryptor = AES.new(keybin, AES.MODE_CTR, counter=counter)
-        msg = (_pfmt % s) + b':' + b64encode(ptxt.encode())
+        msg = (_pfmt % s).encode() + b':' + b64encode(ptxt.encode())
         ctxt = cryptor.encrypt(msg)
         altK = Q * h
         z = Message()

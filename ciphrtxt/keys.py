@@ -55,15 +55,15 @@ _tsmin = (60 * 60 * 12)
 _tsmax = (60 * 60 * 36)
 
 # convert integer to hex string
-_pfmt = b'%%0%dx' % (((_C['bits'] + 7) >> 3) << 1)
-_mfmt = b'%%0%dx' % (((_masksize + 7) >> 3) << 1)
+_pfmt = '%%0%dx' % (((_C['bits'] + 7) >> 3) << 1)
+_mfmt = '%%0%dx' % (((_masksize + 7) >> 3) << 1)
 
 # v1.0 in fixed point
 _format_version = 0x0100
 
 
 #def compress_point(P):
-#    return ('03' if (P[1] % 2) else '02') + (_pfmt % P[0])
+#    return ('03' if (P[1] % 2) else '02') + (_pfmt % P[0]).encode()
 
 
 #def decompress_point(K):
@@ -116,8 +116,8 @@ class PublicKey (object):
             return self.last_pubkey_point
         P = self.P
         for i in range(len(self.Tbk)):
-            okeyt = _pfmt % (self.Tbk[i]['otp'])
-            stepsd = b'%07d' % (steps % 10000000)
+            okeyt = (_pfmt % (self.Tbk[i]['otp'])).encode()
+            stepsd = ('%07d' % (steps % 10000000)).encode()
             otphmac = hmac.new(okeyt, stepsd, hashlib.sha256)
             hashv = otphmac.hexdigest()
             hashi = int(hashv, 16) % _C['p']
@@ -128,15 +128,15 @@ class PublicKey (object):
         return P
 
     def serialize_pubkey(self):
-        ekey = b'P%04x' % _format_version
+        ekey = ('P%04x' % _format_version).encode()
         ekey += b':K' + self.P.compress()
-        ekey += b':M' + (_mfmt % self.addr['mask'])
-        ekey += b':N' + (_mfmt % self.addr['mtgt'])
-        ekey += b':Z' + (b'%08x' % self.t0)
-        ekey += b':S' + (b'%08x' % self.ts)
-        ekey += b':R' + (b'%04x' % len(self.Tbk))
+        ekey += b':M' + (_mfmt % self.addr['mask']).encode()
+        ekey += b':N' + (_mfmt % self.addr['mtgt']).encode()
+        ekey += b':Z' + ('%08x' % self.t0).encode()
+        ekey += b':S' + ('%08x' % self.ts).encode()
+        ekey += b':R' + ('%04x' % len(self.Tbk)).encode()
         for Tbk in self.Tbk:
-            ekey += b':F' + (_pfmt % Tbk['otp'])
+            ekey += b':F' + (_pfmt % Tbk['otp']).encode()
             ekey += b':T' + Tbk['T'].compress()
         ekey += b':C' + (hashlib.sha256(ekey).hexdigest()[-8:]).encode()
         return ekey
@@ -202,7 +202,7 @@ class PrivateKey (PublicKey):
         self.last_privkey_val = None
 
     def label(self):
-        txt = (_pfmt % self.p)[:8]
+        txt = (_pfmt % self.p).encode()[:8]
         if self.name:
             txt = self.name + '_' + txt
         return txt
@@ -268,8 +268,8 @@ class PrivateKey (PublicKey):
             return self.last_privkey_val
         p = self.p
         for i in range(len(self.tbk)):
-            okeyt = _pfmt % (self.tbk[i]['otp'])
-            stepsd = b'%07d' % (steps % 10000000)
+            okeyt = (_pfmt % (self.tbk[i]['otp'])).encode()
+            stepsd = ('%07d' % (steps % 10000000)).encode()
             otphmac = hmac.new(okeyt, stepsd, hashlib.sha256)
             hashv = otphmac.hexdigest()
             hashi = int(hashv, 16) % _C['p']
@@ -281,15 +281,15 @@ class PrivateKey (PublicKey):
 
     def serialize_privkey(self):
         ekey = b'p%04x' % _format_version
-        ekey += b':k' + (_pfmt % self.p)
-        ekey += b':m' + (_mfmt % self.addr['mask'])
-        ekey += b':n' + (_mfmt % self.addr['mtgt'])
-        ekey += b':z' + (b'%08x' % self.t0)
-        ekey += b':s' + (b'%08x' % self.ts)
-        ekey += b':r' + (b'%04x' % len(self.tbk))
+        ekey += b':k' + (_pfmt % self.p).encode()
+        ekey += b':m' + (_mfmt % self.addr['mask']).encode()
+        ekey += b':n' + (_mfmt % self.addr['mtgt']).encode()
+        ekey += b':z' + ('%08x' % self.t0).encode()
+        ekey += b':s' + ('%08x' % self.ts).encode()
+        ekey += b':r' + ('%04x' % len(self.tbk)).encode()
         for tbk in self.tbk:
-            ekey += b':f' + (_pfmt % tbk['otp'])
-            ekey += b':t' + (_pfmt % tbk['t'])
+            ekey += b':f' + (_pfmt % tbk['otp']).encode()
+            ekey += b':t' + (_pfmt % tbk['t']).encode()
         ekey += b':c' + (hashlib.sha256(ekey).hexdigest()[-8:]).encode()
         return ekey
 

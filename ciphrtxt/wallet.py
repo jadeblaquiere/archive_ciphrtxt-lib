@@ -47,7 +47,7 @@ _network_id = {
     'bt-simtest': { 'pub': b'3f', 'priv': b'64' },
 }
 
-_pfmt = b'%%0%dx' % (((_C['bits'] + 7) >> 3) << 1)
+_pfmt = '%%0%dx' % (((_C['bits'] + 7) >> 3) << 1)
 _default_network = _network_id['ct-indigo']
 
 
@@ -70,14 +70,14 @@ class WalletPubkey (object):
         # see: https://en.bitcoin.it/wiki/Technical_background_of_version_1_Bitcoin_addresses
         # hash key - sha256 then ripemd160
         aff = self.P.affine()
-        long_pt = b'04' + (_pfmt % aff[0]) + (_pfmt % aff[1])
+        long_pt = b'04' + (_pfmt % aff[0]).encode() + (_pfmt % aff[1]).encode()
         h = RIPEMD.new(sha256(unhexlify(long_pt)).digest())
         # add header prefix
-        h_hashkey = WalletPubkey.network['pub'] + hexlify(h.digest()).decode('utf-8')
+        h_hashkey = WalletPubkey.network['pub'] + hexlify(h.digest())
         # calc checksum
         cksum = sha256(sha256(unhexlify(h_hashkey)).digest()).hexdigest()[:8]
         # encode base58
-        return b58encode(unhexlify(h_hashkey + cksum)).encode()
+        return b58encode(unhexlify(h_hashkey + cksum.encode())).encode()
 
     def serialize_pubkey_compressed(self):
         if self.P is None:
@@ -87,11 +87,11 @@ class WalletPubkey (object):
         # hash key - sha256 then ripemd160
         h = RIPEMD.new(sha256(unhexlify(self.P.compress())).digest())
         # add header prefix
-        h_hashkey = WalletPubkey.network['pub'] + hexlify(h.digest()).decode('utf-8')
+        h_hashkey = WalletPubkey.network['pub'] + hexlify(h.digest())
         # calc checksum
         cksum = sha256(sha256(unhexlify(h_hashkey)).digest()).hexdigest()[:8]
         # encode base58
-        return b58encode(unhexlify(h_hashkey + cksum)).encode()
+        return b58encode(unhexlify(h_hashkey + cksum.encode())).encode()
 
     def serialize(self):
         return self.serialize_pubkey()
@@ -114,11 +114,11 @@ class WalletPrivkey(WalletPubkey):
         # generate WIF format
         # see: https://en.bitcoin.it/wiki/Wallet_import_format
         # add header prefix
-        h_key = WalletPrivkey.network['priv'] + (_pfmt % self.p)
+        h_key = WalletPrivkey.network['priv'] + (_pfmt % self.p).encode()
         # calc checksum
         cksum = sha256(sha256(unhexlify(h_key)).digest()).hexdigest()[:8]
         # encode base58
-        return b58encode(unhexlify(h_key + cksum)).encode()
+        return b58encode(unhexlify(h_key + cksum.encode())).encode()
 
     def serialize_privkey_compressed(self):
         if self.p is None:
@@ -126,11 +126,11 @@ class WalletPrivkey(WalletPubkey):
         # generate WIF format
         # see: https://en.bitcoin.it/wiki/Wallet_import_format
         # add header prefix
-        h_key = WalletPrivkey.network['priv'] + (_pfmt % self.p) + b'01'
+        h_key = WalletPrivkey.network['priv'] + (_pfmt % self.p).encode() + b'01'
         # calc checksum
         cksum = sha256(sha256(unhexlify(h_key)).digest()).hexdigest()[:8]
         # encode base58
-        return b58encode(unhexlify(h_key + cksum)).encode()
+        return b58encode(unhexlify(h_key + cksum.encode())).encode()
 
     def serialize(self):
         return self.serialize_privkey()
