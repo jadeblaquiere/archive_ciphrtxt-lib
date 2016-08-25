@@ -146,6 +146,8 @@ class PublicKey (object):
 
     @staticmethod
     def deserialize(ikey):
+        if isinstance(ikey, str):
+            ikey = ikey.encode()
         # verify checksum
         inp = ikey.split(b':C')
         if len(inp) != 2:
@@ -298,6 +300,8 @@ class PrivateKey (PublicKey):
 
     @staticmethod
     def deserialize(ikey):
+        if isinstance(ikey, str):
+            ikey = ikey.encode()
         # verify checksum
         inp = ikey.split(b':c')
         if len(inp) != 2:
