@@ -31,7 +31,7 @@ from ciphrtxt.message import Message
 from argparse import ArgumentParser
 import sys
 
-parser = ArgumentParser(description='read message plaintext from stdin and write encoded message to stdout')
+parser = ArgumentParser(description='read encoded message from stdin and write message plaintext to stdout')
 parser.add_argument('recipient', default='', help='recipient private key (hint: starts with p0100)')
 parser.add_argument('--sender', default=None, help='sender public key (optional for signature verification)')
 clargs = parser.parse_args()

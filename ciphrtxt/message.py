@@ -83,6 +83,8 @@ class MessageHeader (object):
 
     @staticmethod
     def deserialize(cmsg):
+        if isinstance(cmsg, str):
+            cmsg = cmsg.encode()
         z = MessageHeader()
         if z._deserialize_header(cmsg):
             return z
