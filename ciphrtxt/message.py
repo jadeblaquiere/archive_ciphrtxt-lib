@@ -168,6 +168,8 @@ class Message (MessageHeader):
 
     @staticmethod
     def deserialize(cmsg):
+        if isinstance(cmsg, str):
+            cmsg = cmsg.encode()
         hdrdata = cmsg.split(b':')
         if len(hdrdata) != 9:
             return None
@@ -189,7 +191,7 @@ class Message (MessageHeader):
         sp = int(sha256(DH.compress()).hexdigest(), 16) % _C['n']
         SP = _G * sp
         if not _ecdsa.verify(SP, self.sig, self.ctxt, self._serialize_header()):
-            #print('signature error, aborting decode')
+            # print('signature error, aborting decode')
             return False
         iv = int(self.I.compress()[-32:],16)
         keybin = unhexlify(DH.compress()[-64:])
@@ -214,7 +216,7 @@ class Message (MessageHeader):
         try:
             self.ptxt = b64decode(msg[1])
         except:
-            print('base64 decode failed')
+            # print('base64 decode failed')
             return False
         self.ptxt = self.ptxt.decode()
         self.s = s
