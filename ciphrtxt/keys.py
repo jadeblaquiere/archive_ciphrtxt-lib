@@ -57,6 +57,8 @@ _tsmax = (60 * 60 * 36)
 # convert integer to hex string
 _pfmt = '%%0%dx' % (((_C['bits'] + 7) >> 3) << 1)
 _mfmt = '%%0%dx' % (((_masksize + 7) >> 3) << 1)
+_Pfmt = '%%0%dX' % (((_C['bits'] + 7) >> 3) << 1)
+_Mfmt = '%%0%dX' % (((_masksize + 7) >> 3) << 1)
 
 # v1.0 in fixed point
 _format_version = 0x0100
@@ -129,16 +131,16 @@ class PublicKey (object):
 
     def serialize_pubkey(self):
         ekey = ('P%04x' % _format_version).encode()
-        ekey += b':K' + self.P.compress()
-        ekey += b':M' + (_mfmt % self.addr['mask']).encode()
-        ekey += b':N' + (_mfmt % self.addr['mtgt']).encode()
-        ekey += b':Z' + ('%08x' % self.t0).encode()
-        ekey += b':S' + ('%08x' % self.ts).encode()
-        ekey += b':R' + ('%04x' % len(self.Tbk)).encode()
+        ekey += b':K' + self.P.compress().upper()
+        ekey += b':M' + (_Mfmt % self.addr['mask']).encode()
+        ekey += b':N' + (_Mfmt % self.addr['mtgt']).encode()
+        ekey += b':Z' + ('%08X' % self.t0).encode()
+        ekey += b':S' + ('%08X' % self.ts).encode()
+        ekey += b':R' + ('%04X' % len(self.Tbk)).encode()
         for Tbk in self.Tbk:
-            ekey += b':F' + (_pfmt % Tbk['otp']).encode()
-            ekey += b':T' + Tbk['T'].compress()
-        ekey += b':C' + (hashlib.sha256(ekey).hexdigest()[-8:]).encode()
+            ekey += b':F' + (_Pfmt % Tbk['otp']).encode()
+            ekey += b':T' + Tbk['T'].compress().upper()
+        ekey += b':C' + (hashlib.sha256(ekey).hexdigest()[-8:]).encode().upper()
         return ekey
 
     def serialize(self):
@@ -152,7 +154,7 @@ class PublicKey (object):
         inp = ikey.split(b':C')
         if len(inp) != 2:
             return None
-        ckck = hashlib.sha256(inp[0]).hexdigest()[-8:].encode()
+        ckck = hashlib.sha256(inp[0]).hexdigest()[-8:].encode().upper()
         if ckck != inp[1]:
             return None
         # verify keys

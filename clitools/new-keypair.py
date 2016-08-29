@@ -26,4 +26,16 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-__version__ = 0.20
+from ciphrtxt.keys import PrivateKey, PublicKey
+from argparse import ArgumentParser
+
+parser = ArgumentParser(description='create new ciphrtxt keypair')
+parser.add_argument('--ntbk', type=int, default=3, help='number of time-based keys (default 3)')
+clargs = parser.parse_args()
+
+key = PrivateKey()
+key.randomize(clargs.ntbk)
+privkey = key.serialize_privkey().decode()
+pubkey = key.serialize_pubkey().decode()
+print('Privkey : ' + privkey)
+print('Pubkey  : ' + pubkey)
