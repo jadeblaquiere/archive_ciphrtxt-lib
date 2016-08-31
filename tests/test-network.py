@@ -29,24 +29,116 @@ from ciphrtxt.network import MsgStore, CTClient
 from ciphrtxt.keys import PrivateKey, PublicKey
 from ciphrtxt.message import Message, MessageHeader
 import random
+import time
+import tornado.ioloop
+import tornado.gen
 
-with CTClient() as c:
-    m = MsgStore('coopr8.com', 7754)
-    m.refresh()
-    print(m)
-    hdrs = m.get_headers()
-    print(hdrs)
-    for i in range(0,5):
-        h = random.choice(hdrs)
-        msg = m.get_message(h)
-        print(h)
-    Apriv = PrivateKey()
-    Apriv.randomize(4)
-    Apub = PublicKey.deserialize(Apriv.serialize_pubkey())
-    Bpriv = PrivateKey()
-    Bpriv.randomize(4)
-    Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
-    mtxt = 'the quick brown fox jumped over the lazy dog'
-    msg = Message.encode(mtxt, Bpub, Apriv)
-    r = m.post_message(msg)
-    print(r)
+mlist = []
+slist = []
+
+@tornado.gen.coroutine
+def print_message(m):
+    mlist.append(m)
+
+@tornado.gen.coroutine
+def register_message(r):
+    slist.append(r)
+
+m = MsgStore('coopr8.com', 7754)  
+    
+@tornado.gen.coroutine
+def run_test1():
+    with CTClient() as c:
+        # syncronous calls
+        m.refresh()
+        print('MsgStore opened as ' + str(m))
+        print()
+        hdrs = m.get_headers()
+        print('MsgStore all headers : ' + str(hdrs))
+        print()
+        for i in range(0,5):
+            h = random.choice(hdrs)
+            msg = m.get_message(h)
+            print('random message retreived as ' + msg.serialize().decode())
+            print()
+        Apriv = PrivateKey()
+        Apriv.randomize(4)
+        Apub = PublicKey.deserialize(Apriv.serialize_pubkey())
+        Bpriv = PrivateKey()
+        Bpriv.randomize(4)
+        Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
+        mtxt = 'the quick brown fox jumped over the lazy dog'
+        msg = Message.encode(mtxt, Bpub, Apriv)
+        r = m.post_message(msg)
+        print('message posted, server metadata' + str(r))
+        print()
+
+@tornado.gen.coroutine
+def run_test2():
+    with CTClient() as c:
+        # syncronous call
+        m.refresh()
+        print('MsgStore opened as ' + str(m))
+        print()
+        hdrs = m.get_headers()
+        # asynchronous calls
+        for i in range(0,5):
+            h = random.choice(hdrs)
+            r = yield m.get_message(h, callback=print_message)
+            print('sent request for header ' + h.serialize().decode())
+            print()
+
+def run_test3():
+    print('messages')
+    for msg in mlist:
+        print('msg received = ' + msg.serialize().decode())
+    print('... that is all')
+    print()
+
+@tornado.gen.coroutine
+def run_test4():
+    with CTClient() as c:
+        # syncronous call
+        m.refresh()
+        print('MsgStore opened as ' + str(m))
+        print()
+        Apriv = PrivateKey()
+        Apriv.randomize(4)
+        Apub = PublicKey.deserialize(Apriv.serialize_pubkey())
+        Bpriv = PrivateKey()
+        Bpriv.randomize(4)
+        Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
+        # asynchronous calls
+        mtxt = 'the quick brown fox jumped over the lazy dog'
+        msgs = []
+        print('Encoding messages ')
+        print()
+        for i in range(0,5):
+            msg = Message.encode(mtxt, Bpub, Apriv)
+            msgs.append(msg)
+        print('Posting messages')
+        print()
+        for msg in msgs:
+            h = MessageHeader.deserialize(msg._serialize_header())
+            r = yield m.post_message(msg, callback=register_message)
+            print('sent async post for ' + h.serialize().decode())
+            print()
+            mtxt += 'the quick brown fox jumped over the lazy dog'
+
+def run_test5():
+    print('sent')
+    for s in slist:
+        print('sent metadata = ' + str(s))
+    print('... that is all')
+    print()
+
+
+tornado.ioloop.IOLoop.current().run_sync(run_test1)
+
+tornado.ioloop.IOLoop.current().run_sync(run_test2)
+
+run_test3()
+
+tornado.ioloop.IOLoop.current().run_sync(run_test4)
+
+run_test5()

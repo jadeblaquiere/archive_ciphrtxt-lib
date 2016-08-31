@@ -157,7 +157,7 @@ class OnionHost(object):
 
 
 class NestedRequest(object):
-    def __init__(self, callback, callback_next):
+    def __init__(self):
         self.callback = None
         self.callback_next = None
         
@@ -167,22 +167,22 @@ class NestedRequest(object):
     def onion_get(baseurl, path, callback, callback_next, nak=None, onions=None, headers=None):
         self.callback = callback
         self.callback_next = callback_next
-        return OnionRequest().get(baseurl, path, nak=nak, callback=self.callback, headers=headers)
+        return OnionRequest().get(baseurl, path, nak=nak, callback=self._callback, headers=headers)
     
     def onion_post(self, path, body, callback, callback_next, nak=None, onions=None, headers=None):
         self.callback = callback
         self.callback_next = callback_next
-        return OnionRequest().post(baseurl, path, body, nak=nak, callback=self.callback, headers=headers)
+        return OnionRequest().post(baseurl, path, body, nak=nak, callback=self._callback, headers=headers)
     
     def get(self, baseurl, path, callback, callback_next, nak=None, headers=None):
         self.callback = callback
         self.callback_next = callback_next
-        return OnionRequest().get(baseurl, path, nak=nak, callback=self.callback, headers=headers)
+        return OnionRequest().get(baseurl, path, nak=nak, callback=self._callback, headers=headers)
     
     def post(self, baseurl, path, body, callback, callback_next, nak=None, headers=None):
         self.callback = callback
         self.callback_next = callback_next
-        return OnionRequest().post(baseurl, path, body, nak=nak, callback=self.callback, headers=headers)
+        return OnionRequest().post(baseurl, path, body, nak=nak, callback=self._callback, headers=headers)
 
 
 class OnionRequest(object):
@@ -227,8 +227,8 @@ class OnionRequest(object):
         ivbin = unhexlify('%032x' % iv)
         counter = Counter.new(128, initial_value=iv)
         cryptor = AES.new(keybin, AES.MODE_CTR, counter=counter)
-        print('req = ' + str(req))
-        print('req type = ' + str(type(req)))
+        # print('req = ' + str(req))
+        # print('req type = ' + str(type(req)))
         ciphertext = cryptor.encrypt(json.dumps(req))
         r = {}
         r['local'] = False
@@ -308,9 +308,8 @@ class OnionRequest(object):
                     return r.body
                 else:
                     self.callback = callback
-                    print('url = ' + url)
-                    r = CTClient._aclient.fetch(req, self._callback)
-                    return r
+                    # print('url = ' + url + ', callback = ' + str(callback))
+                    return CTClient._aclient.fetch(req, callback=self._callback)
             else:
                 # print('sending POST to ' + url)
                 req = HTTPRequest(url, method='POST', body=body, headers=headers)
@@ -322,8 +321,7 @@ class OnionRequest(object):
                     return r.body
                 else:
                     self.callback = callback
-                    r = CTClient._aclient.fetch(url, self._callback)
-                    return r
+                    return CTClient._aclient.fetch(req, self._callback)
         
     
     def get(self, ohost, path, nak=None, callback=None, onions=None, headers=None):
@@ -345,6 +343,7 @@ class MsgStore (OnionHost):
         self._post_queue = []
         self._insert_lock = Lock()
         self._gq_lock = Lock()
+        self.reply_log = []
 
     def _sync_headers(self, onions=None):
         if self.Pkey is None:
@@ -361,7 +360,7 @@ class MsgStore (OnionHost):
         for h in self.headers:
             if servertime > h.expire:
                 self._insert_lock.acquire()
-                #print('expiring ' + h.I.compress().decode())
+                # print('expiring ' + h.I.compress().decode())
                 self.headers.remove(h)
                 self._insert_lock.release()
         self.last_sync = time.time()
@@ -389,6 +388,7 @@ class MsgStore (OnionHost):
         return self.headers
     
     def _cb_get_message(self, resp, callback_next):
+        self.reply_log.append((resp, callback_next))
         m = Message.deserialize(resp)
         return callback_next(m)
 
@@ -400,9 +400,12 @@ class MsgStore (OnionHost):
             r = self.get(_download_message + hdr.I.compress().decode())
             return Message.deserialize(r)
         else:
-            return NestedRequest().get(_download_message + hdr.I.compress().decode(), callback=self._cb_get_message, callback_next=callback)
+            # print('submitting NestedRequest for ' + self._baseurl() + _download_message + hdr.I.compress().decode() + ' with callback ' + str(callback))
+            return NestedRequest().get(self._baseurl(), _download_message + hdr.I.compress().decode(), callback=self._cb_get_message, callback_next=callback)
+            #r = self.get(_download_message + hdr.I.compress().decode())
+            #return self._cb_get_message(r, callback)
     
-    def post_message(self, msg):
+    def post_message(self, msg, callback=None):
         if msg in self.headers:
             return
         raw = msg.serialize()
@@ -411,7 +414,7 @@ class MsgStore (OnionHost):
         files = [('message', 'message', raw.decode())]
         content_type, body = encode_multipart_formdata(fields, files)
         headers = {"Content-Type": content_type, 'content-length': str(len(body))}
-        r = self.post(_upload_message, body, headers=headers)
+        r = self.post(_upload_message, body, headers=headers, callback=callback)
         if r is None:
             return None
         self._insert_lock.acquire()
