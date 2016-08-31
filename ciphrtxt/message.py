@@ -152,7 +152,7 @@ class MessageHeader (object):
         return self.serialize().decode()
 
     def __repr__(self):
-        return 'MessageHeader.deserialize('+ self.serialize() + ')'
+        return 'MessageHeader.deserialize('+ self.serialize().decode() + ')'
 
 
 

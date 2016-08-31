@@ -47,7 +47,7 @@ Simple CLI tool example for using the ciphrtxt libraries
 
     if you repeat that with a different pubkey (e.g. the recipient pubkey) then it will fail validation
 
-1. (optional) Send an anonymous message by leaving off the sender when encoding so that a key is generated at random
+1. (optional) Encode an anonymous message by leaving off the sender when encoding so that the sender key is generated at random
 
     ```
     echo "Hello, Bob!" | python encode-message.py [RECIPIENT PUBKEY] > ctext
