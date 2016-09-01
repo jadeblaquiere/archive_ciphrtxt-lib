@@ -37,7 +37,7 @@ import tornado.gen
 mlist = []
 slist = []
 
-nakpriv=int('a5877758575485edaee1764263b1838aeb7e868fd5f2310f447b6f2f53e9bf48',16)
+nakpriv=int('abdeb268f8d6c62b8404a6cce6fe70a7bc15b4b509f8a5dc4d819cf6478ad459',16)
 nak = NAK(privkey=nakpriv)
 
 @tornado.gen.coroutine
@@ -165,7 +165,9 @@ def run_test6():
             for o in orand:
                 print('    ' + str(o))
             print()
-            msg = orand[0].get_message(h, nak=nak, onions=orand[1:])
+            # msg = orand[0].get_message(h, nak=nak, onions=orand[1:])
+            msg = m.get_message(h, nak=nak, onions=[m])
+            print(msg.serialize().decode())
         
 
 #tornado.ioloop.IOLoop.current().run_sync(run_test1)

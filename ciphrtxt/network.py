@@ -241,7 +241,7 @@ class OnionRequest(object):
         if not _ecdsa.verify(ohost.Pkey, sig, d_bd[64:]):
             return None
         d_ecdh = ohost.Pkey * self.reply_pkey
-        d_keybin = hashlib.sha256(d_ecdh.compress().encode('UTF-8')).digest()
+        d_keybin = hashlib.sha256(d_ecdh.compress()).digest()
         d_ivcount = int(hexlify(d_bd[64:80]),16)
         d_counter = Counter.new(128,initial_value=d_ivcount)
         d_cryptor = AES.new(d_keybin, AES.MODE_CTR, counter=d_counter)
