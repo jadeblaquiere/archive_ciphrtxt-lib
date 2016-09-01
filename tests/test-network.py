@@ -49,6 +49,7 @@ def register_message(r):
     slist.append(r)
 
 m = MsgStore('coopr8.com', 7754)  
+m2 = MsgStore('indigo.bounceme.net', 7754)  
     
 @tornado.gen.coroutine
 def run_test1():
@@ -146,6 +147,8 @@ def run_test5():
 
 def run_test6():
     with CTClient() as c:
+        # synchronous onion get
+        m.refresh()
         peers = m.get_peers()
         hdrs = m.get_headers()
         onions = []
@@ -158,6 +161,7 @@ def run_test6():
         print('found ' + str(nonion) + ' onion hosts')
         for o in onions:
             print('    ' + str(o))
+            onion._sync_headers()
         for i in range (0,5):
             h = random.choice(hdrs)
             orand = random.sample(onions, min(nonion-1,3))
@@ -165,9 +169,54 @@ def run_test6():
             for o in orand:
                 print('    ' + str(o))
             print()
-            # msg = orand[0].get_message(h, nak=nak, onions=orand[1:])
-            msg = m.get_message(h, nak=nak, onions=[m])
+            msg = orand[0].get_message(h, nak=nak, onions=orand[1:])
+            # msg = m.get_message(h, nak=nak, onions=[m, m2])
+            # msg = m2.get_message(h, nak=nak, onions=[m2, m])
             print(msg.serialize().decode())
+        
+def run_test7():
+    with CTClient() as c:
+        # synchronous onion post
+        m.refresh()
+        m2.refresh()
+        peers = m.get_peers()
+        hdrs = m.get_headers()
+        onions = []
+        for p in peers:
+            onion = MsgStore(p['host'], p['port'])
+            onion.refresh()
+            if onion.Pkey is not None:
+                onions.append(onion)
+        nonion = len(onions)
+        print('found ' + str(nonion) + ' onion hosts')
+        for o in onions:
+            print('    ' + str(o))
+            onion._sync_headers()
+        Apriv = PrivateKey()
+        Apriv.randomize(4)
+        Apub = PublicKey.deserialize(Apriv.serialize_pubkey())
+        Bpriv = PrivateKey()
+        Bpriv.randomize(4)
+        Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
+        # asynchronous calls
+        mtxt = 'the quick brown fox jumped over the lazy dog'
+        msgs = []
+        print('Encoding messages ')
+        print()
+        for i in range(0,5):
+            msg = Message.encode(mtxt, Bpub, Apriv)
+            msgs.append(msg)
+        for msg in msgs:
+            h = random.choice(hdrs)
+            orand = random.sample(onions, min(nonion-1,3))
+            print('posting via onions')
+            for o in orand:
+                print('    ' + str(o))
+            print()
+            conf = orand[0].post_message(msg, nak=nak, onions=orand[1:])
+            # conf = m.post_message(msg, nak=nak, onions=[m, m2])
+            # conf = m2.post_message(msg, nak=nak, onions=[m2])
+            print(conf)
         
 
 #tornado.ioloop.IOLoop.current().run_sync(run_test1)
@@ -180,5 +229,7 @@ def run_test6():
 
 #run_test5()
 
-tornado.ioloop.IOLoop.current().run_sync(run_test6)
+#tornado.ioloop.IOLoop.current().run_sync(run_test6)
+
+tornado.ioloop.IOLoop.current().run_sync(run_test7)
 

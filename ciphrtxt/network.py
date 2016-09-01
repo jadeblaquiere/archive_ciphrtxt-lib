@@ -189,23 +189,25 @@ class OnionRequest(object):
         self.reply_Pkey = None
         self.reply_ohost = None
  
-    def _format_get(self, path):
+    def _format_get(self, path, headers):
         self.reply_pkey = random.randint(1,_C['n']-1)
         self.reply_Pkey = _G * self.reply_pkey
         r = {}
         r['local'] = True
         r['url'] = path
         r['action'] = 'GET'
+        r['headers'] = headers
         r['replykey'] = self.reply_Pkey.compress().decode()
         return r
     
-    def _format_post(self, path, body):
+    def _format_post(self, path, body, headers):
         self.reply_pkey = random.randint(1,_C['n']-1)
         self.reply_Pkey = _G * self.reply_pkey
         r = {}
         r['local'] = True
         r['url'] = path
         r['action'] = 'POST'
+        r['headers'] = headers
         r['body'] = str(body)
         r['replykey'] = self.reply_Pkey.compress().decode()
         return r
@@ -266,13 +268,19 @@ class OnionRequest(object):
             if nak is None:
                 raise ValueError('Onion routing requires network access key')
             if rtype.lower() == 'get':
-                inner = self._format_get(path)
+                inner = self._format_get(path, headers)
             else:
-                inner = self._format_post(path, body)
+                inner = self._format_post(path, body, headers)
             outer = self._wrap(ohost, inner)
+            if outer is None:
+                print('wrap failed for host' + str(ohost))
+                return None
             for o in reversed(onions):
                 inner = outer
                 outer = self._wrap(o,inner)
+                if outer is None:
+                    print('wrap failed for host' + str(ohost))
+                    return None
             naksig = self._nakit(nak, outer['body'])
             body = nak.pubkeybin() + naksig + outer['body']
             body = base64.b64encode(body).decode()
@@ -286,8 +294,7 @@ class OnionRequest(object):
             else:
                 self.callback = callback
                 self.reply_ohost = ohost
-                r = CTClient._aclient.fetch(req, self._decrypt_callback)
-                return None
+                return CTClient._aclient.fetch(req, self._decrypt_callback)
         
         else:
             if onions is not None:
@@ -418,17 +425,17 @@ class MsgStore (OnionHost):
         if isinstance(msgid, bytes):
             msgid = msgid.decode()
         if callback is None:
-            r = self.get(_download_message + msgid)
+            r = self.get(_download_message + msgid, nak=None, onions=None)
             if r is None:
                 return None
             return Message.deserialize(r)
         else:
             # print('submitting NestedRequest for ' + self._baseurl() + _download_message + hdr.I.compress().decode() + ' with callback ' + str(callback))
-            return NestedRequest().get(self._baseurl(), _download_message + msgid, callback=self._cb_get_message, callback_next=callback)
+            return NestedRequest().get(self._baseurl(), _download_message + msgid, callback=self._cb_get_message, callback_next=callback, nak=nak, onions=onions)
             #r = self.get(_download_message + hdr.I.compress().decode())
             #return self._cb_get_message(r, callback)
     
-    def post_message(self, msg, callback=None):
+    def post_message(self, msg, callback=None, nak=None, onions=None):
         if msg in self.headers:
             return
         raw = msg.serialize()
@@ -437,7 +444,7 @@ class MsgStore (OnionHost):
         files = [('message', 'message', raw.decode())]
         content_type, body = encode_multipart_formdata(fields, files)
         headers = {"Content-Type": content_type, 'content-length': str(len(body))}
-        r = self.post(_upload_message, body, headers=headers, callback=callback)
+        r = self.post(_upload_message, body, headers=headers, callback=callback, nak=nak, onions=onions)
         if r is None:
             return None
         self._insert_lock.acquire()
