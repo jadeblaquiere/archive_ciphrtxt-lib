@@ -120,12 +120,12 @@ class NAK(object):
     def sign(self,message):
         if self.privkey is None:
             return None
-        return NAK.ecdsa.sign(self.privkey, message.encode('UTF8'))
+        return NAK.ecdsa.sign(self.privkey, message)
 
     def verify(self,signature,message):
         if self.pubkey is None:
             return False
-        return NAK.ecdsa.verify(self.pubkey, signature, message.encode('UTF-8'))
+        return NAK.ecdsa.verify(self.pubkey, signature, message)
 
     def pubkeybin(self):
         if self.pubkeyb is not None:

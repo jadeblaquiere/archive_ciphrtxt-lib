@@ -58,6 +58,7 @@ _server_time = 'api/time/'
 _headers_since = 'api/header/list/since/'
 _download_message = 'api/message/download/'
 _upload_message = 'api/message/upload/'
+_peer_list = 'api/peer/list/'
 
 _cache_expire_time = 5 # seconds
 _high_water = 50
@@ -143,17 +144,23 @@ class OnionHost(object):
     def __str__(self):
         return 'CT Onion host @ ' + self._baseurl() + ' key = ' + self.Pkey.compress().decode()
     
-    def onion_get(self, path, nak=None, callback=None, onions=None, headers=None):
-        return OnionRequest().get(self, path, nak=nak, callback=callback, onions=onions, headers=headers)
+    def get(self, path, nak=None, callback=None, headers=None, onions=None):
+        if onions is None:
+            if nak is not None:
+                raise(ValueError, 'Using NAK requires Onions route list is provided')
+            return OnionRequest().get(self._baseurl(), path, callback=callback, headers=headers)
+        if nak is None:
+            raise ValueError('Onion routing requires NAK is provided')
+        return OnionRequest().get(self, path, nak=nak, callback=callback, headers=headers, onions=onions)
     
-    def onion_post(self, path, body, nak=None, callback=None, onions=None, headers=None):
-        return OnionRequest().post(self, path, body, nak=nak, callback=callback, onions=onions, headers=headers)
-    
-    def get(self, path, nak=None, callback=None, headers=None):
-        return OnionRequest().get(self._baseurl(), path, nak=nak, callback=callback, headers=headers)
-    
-    def post(self, path, body, nak=None, callback=None, headers=None):
-        return OnionRequest().post(self._baseurl(), path, body, nak=nak, callback=callback, headers=headers)
+    def post(self, path, body, nak=None, callback=None, headers=None, onions=None):
+        if onions is None:
+            if nak is not None:
+                raise(ValueError, 'Using NAK requires Onions route list is provided')
+            return OnionRequest().post(self._baseurl(), path, body, callback=callback, headers=headers)
+        if nak is None:
+            raise ValueError('Onion routing requires NAK is provided')
+        return OnionRequest().post(self, path, body, nak=nak, callback=callback, headers=headers, onions=onions)
 
 
 class NestedRequest(object):
@@ -164,22 +171,12 @@ class NestedRequest(object):
     def _callback(self, resp):
         return self.callback(resp, self.callback_next)
     
-    def onion_get(baseurl, path, callback, callback_next, nak=None, onions=None, headers=None):
+    def get(self, baseurl, path, callback, callback_next, headers=None):
         self.callback = callback
         self.callback_next = callback_next
         return OnionRequest().get(baseurl, path, nak=nak, callback=self._callback, headers=headers)
     
-    def onion_post(self, path, body, callback, callback_next, nak=None, onions=None, headers=None):
-        self.callback = callback
-        self.callback_next = callback_next
-        return OnionRequest().post(baseurl, path, body, nak=nak, callback=self._callback, headers=headers)
-    
-    def get(self, baseurl, path, callback, callback_next, nak=None, headers=None):
-        self.callback = callback
-        self.callback_next = callback_next
-        return OnionRequest().get(baseurl, path, nak=nak, callback=self._callback, headers=headers)
-    
-    def post(self, baseurl, path, body, callback, callback_next, nak=None, headers=None):
+    def post(self, baseurl, path, body, callback, callback_next, headers=None):
         self.callback = callback
         self.callback_next = callback_next
         return OnionRequest().post(baseurl, path, body, nak=nak, callback=self._callback, headers=headers)
@@ -199,7 +196,7 @@ class OnionRequest(object):
         r['local'] = True
         r['url'] = path
         r['action'] = 'GET'
-        r['replykey'] = self.reply_Pkey.compress()
+        r['replykey'] = self.reply_Pkey.compress().decode()
         return r
     
     def _format_post(self, path, body):
@@ -209,20 +206,20 @@ class OnionRequest(object):
         r['local'] = True
         r['url'] = path
         r['action'] = 'POST'
-        r['body'] = body
-        r['replykey'] = self.reply_Pkey.compress()
+        r['body'] = str(body)
+        r['replykey'] = self.reply_Pkey.compress().decode()
         return r
 
     def _wrap(self, onion, req):
         if not req['local']:
-            req['body'] = base64.b64encode(req['body']).decode('UTF-8')
+            req['body'] = base64.b64encode(req['body']).decode()
         session_pkey = random.randint(1,_C['n']-1)
         session_Pkey = _G * session_pkey
         if onion.Pkey is None:
             if not onion.refresh():
                 return None
         ECDH = onion.Pkey * session_pkey
-        keybin = hashlib.sha256(ECDH.compress().encode('UTF-8')).digest()
+        keybin = hashlib.sha256(ECDH.compress()).digest()
         iv = random.randint(0,(1 << 128)-1)
         ivbin = unhexlify('%032x' % iv)
         counter = Counter.new(128, initial_value=iv)
@@ -234,7 +231,7 @@ class OnionRequest(object):
         r['local'] = False
         r['host'] = onion.host
         r['port'] = onion.port
-        r['pubkey'] = session_Pkey.compress()
+        r['pubkey'] = session_Pkey.compress().decode()
         r['body'] = ivbin+ciphertext
         return r
 
@@ -278,7 +275,7 @@ class OnionRequest(object):
                 outer = self._wrap(o,inner)
             naksig = self._nakit(nak, outer['body'])
             body = nak.pubkeybin() + naksig + outer['body']
-            body = base64.b64encode(body).decode('UTF-8')
+            body = base64.b64encode(body).decode()
             url = 'http://' + outer['host'] + ':' + str(outer['port']) + '/onion/' + outer['pubkey']
             req = HTTPRequest(url, method='POST', body=body, headers=headers)
             if callback is None:
@@ -387,21 +384,47 @@ class MsgStore (OnionHost):
         self._sync_headers()
         return self.headers
     
+    def get_peers(self):
+        if self.Pkey is None:
+            self.refresh()
+        r = self.get(_peer_list)
+        if r is None:
+            return None
+        return json.loads(r.decode())
+
     def _cb_get_message(self, resp, callback_next):
         self.reply_log.append((resp, callback_next))
+        if resp is None:
+            return callback_next(None)
         m = Message.deserialize(resp)
         return callback_next(m)
 
-    def get_message(self, hdr, callback=None):
+    def get_message(self, hdr, callback=None, nak=None, onions=None):
         self._sync_headers()
         if hdr not in self.headers:
             return None
         if callback is None:
-            r = self.get(_download_message + hdr.I.compress().decode())
+            r = self.get(_download_message + hdr.I.compress().decode(), nak=nak, onions=onions)
+            if r is None:
+                return None
             return Message.deserialize(r)
         else:
             # print('submitting NestedRequest for ' + self._baseurl() + _download_message + hdr.I.compress().decode() + ' with callback ' + str(callback))
-            return NestedRequest().get(self._baseurl(), _download_message + hdr.I.compress().decode(), callback=self._cb_get_message, callback_next=callback)
+            return NestedRequest().get(self._baseurl(), _download_message + hdr.I.compress().decode(), callback=self._cb_get_message, callback_next=callback, nak=nak, onions=onions)
+            #r = self.get(_download_message + hdr.I.compress().decode())
+            #return self._cb_get_message(r, callback)
+    
+    def get_message_by_id(self, msgid, callback=None):
+        if isinstance(msgid, bytes):
+            msgid = msgid.decode()
+        if callback is None:
+            r = self.get(_download_message + msgid)
+            if r is None:
+                return None
+            return Message.deserialize(r)
+        else:
+            # print('submitting NestedRequest for ' + self._baseurl() + _download_message + hdr.I.compress().decode() + ' with callback ' + str(callback))
+            return NestedRequest().get(self._baseurl(), _download_message + msgid, callback=self._cb_get_message, callback_next=callback)
             #r = self.get(_download_message + hdr.I.compress().decode())
             #return self._cb_get_message(r, callback)
     

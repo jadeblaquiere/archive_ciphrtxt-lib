@@ -46,21 +46,21 @@ print('Alice privkey = %x' % alice.privkey)
 print('Alice pubkey = ' + str(hexlify(alice.pubkeybin())))
 alice_pub = NAK.deserialize(ex)
 assert alice_pub is not None
-sig = alice.sign(message)
-assert alice_pub.verify(sig,message)
-assert alice.verify(sig,message)
+sig = alice.sign(message.encode())
+assert alice_pub.verify(sig,message.encode())
+assert alice.verify(sig,message.encode())
 
 print('')
 
 atwin = NAK(expire=alice.expire, privkey=alice.privkey)
-stwin = atwin.sign(message)
+stwin = atwin.sign(message.encode())
 print('Alice nak = ' + str(hexlify(atwin.serialize())))
 print('Alice nak str = ' + str(atwin))
 print('Alice privkey = %x' % atwin.privkey)
 print('Alice pubkey = ' + str(hexlify(atwin.pubkeybin())))
-assert alice_pub.verify(stwin,message)
-assert alice.verify(stwin,message)
-assert atwin.verify(stwin,message)
+assert alice_pub.verify(stwin,message.encode())
+assert alice.verify(stwin,message.encode())
+assert atwin.verify(stwin,message.encode())
 
 print('')
 
@@ -78,10 +78,10 @@ print('validating %d keys' % kcount)
 
 for i in range(0,kcount):
     print('i = %d' % i)
-    sig = nakpriv[i].sign(message)
-    assert nakpriv[i].verify(sig,message)
-    assert nakpub[i].verify(sig,message)
+    sig = nakpriv[i].sign(message.encode())
+    assert nakpriv[i].verify(sig,message.encode())
+    assert nakpub[i].verify(sig,message.encode())
     for j in range(0,kcount):
         if j != i:
-            assert not nakpriv[j].verify(sig,message)
-            assert not nakpub[j].verify(sig,message)
+            assert not nakpriv[j].verify(sig,message.encode())
+            assert not nakpub[j].verify(sig,message.encode())

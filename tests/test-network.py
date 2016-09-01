@@ -28,6 +28,7 @@
 from ciphrtxt.network import MsgStore, CTClient
 from ciphrtxt.keys import PrivateKey, PublicKey
 from ciphrtxt.message import Message, MessageHeader
+from ciphrtxt.nak import NAK
 import random
 import time
 import tornado.ioloop
@@ -35,6 +36,9 @@ import tornado.gen
 
 mlist = []
 slist = []
+
+nakpriv=int('a5877758575485edaee1764263b1838aeb7e868fd5f2310f447b6f2f53e9bf48',16)
+nak = NAK(privkey=nakpriv)
 
 @tornado.gen.coroutine
 def print_message(m):
@@ -56,10 +60,18 @@ def run_test1():
         hdrs = m.get_headers()
         print('MsgStore all headers : ' + str(hdrs))
         print()
+        peers = m.get_peers()
+        print('MsgStore found ' + str(len(peers)) + ' peers : ')
+        for p in peers:
+            print('    ' + str(p))
+        print()
         for i in range(0,5):
             h = random.choice(hdrs)
             msg = m.get_message(h)
             print('random message retreived as ' + msg.serialize().decode())
+            msg_test = m.get_message_by_id(h.I.compress())
+            assert msg == msg_test
+            #print('random message retreived as ' + msg_test.serialize().decode())
             print()
         Apriv = PrivateKey()
         Apriv.randomize(4)
@@ -132,13 +144,39 @@ def run_test5():
     print('... that is all')
     print()
 
+def run_test6():
+    with CTClient() as c:
+        peers = m.get_peers()
+        hdrs = m.get_headers()
+        onions = []
+        for p in peers:
+            onion = MsgStore(p['host'], p['port'])
+            onion.refresh()
+            if onion.Pkey is not None:
+                onions.append(onion)
+        nonion = len(onions)
+        print('found ' + str(nonion) + ' onion hosts')
+        for o in onions:
+            print('    ' + str(o))
+        for i in range (0,5):
+            h = random.choice(hdrs)
+            orand = random.sample(onions, min(nonion-1,3))
+            print('fetching from onions')
+            for o in orand:
+                print('    ' + str(o))
+            print()
+            msg = orand[0].get_message(h, nak=nak, onions=orand[1:])
+        
 
-tornado.ioloop.IOLoop.current().run_sync(run_test1)
+#tornado.ioloop.IOLoop.current().run_sync(run_test1)
 
-tornado.ioloop.IOLoop.current().run_sync(run_test2)
+#tornado.ioloop.IOLoop.current().run_sync(run_test2)
 
-run_test3()
+#run_test3()
 
-tornado.ioloop.IOLoop.current().run_sync(run_test4)
+#tornado.ioloop.IOLoop.current().run_sync(run_test4)
 
-run_test5()
+#run_test5()
+
+tornado.ioloop.IOLoop.current().run_sync(run_test6)
+
