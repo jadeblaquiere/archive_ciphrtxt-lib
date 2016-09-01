@@ -171,15 +171,28 @@ class NestedRequest(object):
     def _callback(self, resp):
         return self.callback(resp, self.callback_next)
     
-    def get(self, baseurl, path, callback, callback_next, headers=None):
+    def get(self, ohost, path, callback, callback_next, headers=None, nak=None, onions=None):
         self.callback = callback
         self.callback_next = callback_next
-        return OnionRequest().get(baseurl, path, nak=nak, callback=self._callback, headers=headers)
+        if onions is None:
+            if nak is not None:
+                raise(ValueError, 'Using NAK requires Onions route list is provided')
+            return OnionRequest().get(ohost._baseurl(), path, nak=nak, callback=self._callback, headers=headers, onions=onions)
+        if nak is None:
+            raise ValueError('Onion routing requires NAK is provided')
+        return OnionRequest().get(ohost, path, nak=nak, callback=self._callback, headers=headers, onions=onions)
+        
     
-    def post(self, baseurl, path, body, callback, callback_next, headers=None):
+    def post(self, ohost, path, body, callback, callback_next, headers=None, nak=None, onions=None):
         self.callback = callback
         self.callback_next = callback_next
-        return OnionRequest().post(baseurl, path, body, nak=nak, callback=self._callback, headers=headers)
+        if onions is None:
+            if nak is not None:
+                raise(ValueError, 'Using NAK requires Onions route list is provided')
+            return OnionRequest().post(ohost._baseurl(), path, body, nak=nak, callback=self._callback, headers=headers, onions=onions)
+        if nak is None:
+            raise ValueError('Onion routing requires NAK is provided')
+        return OnionRequest().post(ohost, path, body, nak=nak, callback=self._callback, headers=headers, onions=onions)
 
 
 class OnionRequest(object):
@@ -417,11 +430,11 @@ class MsgStore (OnionHost):
             return Message.deserialize(r)
         else:
             # print('submitting NestedRequest for ' + self._baseurl() + _download_message + hdr.I.compress().decode() + ' with callback ' + str(callback))
-            return NestedRequest().get(self._baseurl(), _download_message + hdr.I.compress().decode(), callback=self._cb_get_message, callback_next=callback, nak=nak, onions=onions)
+            return NestedRequest().get(self, _download_message + hdr.I.compress().decode(), callback=self._cb_get_message, callback_next=callback, nak=nak, onions=onions)
             #r = self.get(_download_message + hdr.I.compress().decode())
             #return self._cb_get_message(r, callback)
     
-    def get_message_by_id(self, msgid, callback=None):
+    def get_message_by_id(self, msgid, callback=None, nak=None, onions=None):
         if isinstance(msgid, bytes):
             msgid = msgid.decode()
         if callback is None:
@@ -431,7 +444,7 @@ class MsgStore (OnionHost):
             return Message.deserialize(r)
         else:
             # print('submitting NestedRequest for ' + self._baseurl() + _download_message + hdr.I.compress().decode() + ' with callback ' + str(callback))
-            return NestedRequest().get(self._baseurl(), _download_message + msgid, callback=self._cb_get_message, callback_next=callback, nak=nak, onions=onions)
+            return NestedRequest().get(self, _download_message + msgid, callback=self._cb_get_message, callback_next=callback, nak=nak, onions=onions)
             #r = self.get(_download_message + hdr.I.compress().decode())
             #return self._cb_get_message(r, callback)
     

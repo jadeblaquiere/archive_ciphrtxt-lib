@@ -95,6 +95,7 @@ def run_test2():
         print()
         hdrs = m.get_headers()
         # asynchronous calls
+        mlist = []
         for i in range(0,5):
             h = random.choice(hdrs)
             r = yield m.get_message(h, callback=print_message)
@@ -131,6 +132,7 @@ def run_test4():
             msgs.append(msg)
         print('Posting messages')
         print()
+        slist = []
         for msg in msgs:
             h = MessageHeader.deserialize(msg._serialize_header())
             r = yield m.post_message(msg, callback=register_message)
@@ -145,6 +147,7 @@ def run_test5():
     print('... that is all')
     print()
 
+@tornado.gen.coroutine
 def run_test6():
     with CTClient() as c:
         # synchronous onion get
@@ -174,7 +177,92 @@ def run_test6():
             # msg = m2.get_message(h, nak=nak, onions=[m2, m])
             print(msg.serialize().decode())
         
+@tornado.gen.coroutine
 def run_test7():
+    with CTClient() as c:
+        # synchronous onion post
+        m.refresh()
+        m2.refresh()
+        peers = m.get_peers()
+        hdrs = m.get_headers()
+        onions = []
+        for p in peers:
+            onion = MsgStore(p['host'], p['port'])
+            onion.refresh()
+            if onion.Pkey is not None:
+                onions.append(onion)
+        nonion = len(onions)
+        print('found ' + str(nonion) + ' onion hosts')
+        for o in onions:
+            print('    ' + str(o))
+            onion._sync_headers()
+        Apriv = PrivateKey()
+        Apriv.randomize(4)
+        Apub = PublicKey.deserialize(Apriv.serialize_pubkey())
+        Bpriv = PrivateKey()
+        Bpriv.randomize(4)
+        Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
+        mtxt = 'the quick brown fox jumped over the lazy dog'
+        msgs = []
+        print('Encoding messages ')
+        print()
+        for i in range(0,5):
+            msg = Message.encode(mtxt, Bpub, Apriv)
+            msgs.append(msg)
+        for msg in msgs:
+            orand = random.sample(onions, min(nonion-1,3))
+            print('posting via onions')
+            for o in orand:
+                print('    ' + str(o))
+            print()
+            conf = orand[0].post_message(msg, nak=nak, onions=orand[1:])
+            # conf = m.post_message(msg, nak=nak, onions=[m, m2])
+            # conf = m2.post_message(msg, nak=nak, onions=[m2])
+            print(conf)
+        
+@tornado.gen.coroutine
+def run_test8():
+    with CTClient() as c:
+        # syncronous call
+        m.refresh()
+        print('MsgStore opened as ' + str(m))
+        print()
+        peers = m.get_peers()
+        hdrs = m.get_headers()
+        onions = []
+        for p in peers:
+            onion = MsgStore(p['host'], p['port'])
+            onion.refresh()
+            if onion.Pkey is not None:
+                onions.append(onion)
+        nonion = len(onions)
+        print('found ' + str(nonion) + ' onion hosts')
+        for o in onions:
+            print('    ' + str(o))
+            onion._sync_headers()
+        # asynchronous calls
+        mlist = []
+        for i in range (0,5):
+            h = random.choice(hdrs)
+            orand = random.sample(onions, min(nonion-1,3))
+            print('fetching from onions')
+            for o in orand:
+                print('    ' + str(o))
+            print()
+            r = yield orand[0].get_message(h, nak=nak, onions=orand[1:], callback=print_message)
+            print('sent request for header ' + h.serialize().decode())
+            print()# msg = m.get_message(h, nak=nak, onions=[m, m2])
+
+def run_test9():
+    print('messages')
+    for msg in mlist:
+        print('msg received = ' + msg.serialize().decode())
+    print('... that is all')
+    print()
+
+
+@tornado.gen.coroutine
+def run_test10():
     with CTClient() as c:
         # synchronous onion post
         m.refresh()
@@ -207,17 +295,24 @@ def run_test7():
             msg = Message.encode(mtxt, Bpub, Apriv)
             msgs.append(msg)
         for msg in msgs:
-            h = random.choice(hdrs)
+            h = MessageHeader.deserialize(msg._serialize_header())
             orand = random.sample(onions, min(nonion-1,3))
             print('posting via onions')
             for o in orand:
                 print('    ' + str(o))
             print()
-            conf = orand[0].post_message(msg, nak=nak, onions=orand[1:])
+            r = yield orand[0].post_message(msg, nak=nak, onions=orand[1:], callback=register_message)
             # conf = m.post_message(msg, nak=nak, onions=[m, m2])
             # conf = m2.post_message(msg, nak=nak, onions=[m2])
-            print(conf)
+            print('sent post for header ' + h.serialize().decode())
+            print()# msg = m.get_message(h, nak=nak, onions=[m, m2])
         
+def run_test11():
+    print('sent')
+    for s in slist:
+        print('sent metadata = ' + str(s))
+    print('... that is all')
+    print()
 
 #tornado.ioloop.IOLoop.current().run_sync(run_test1)
 
@@ -231,5 +326,12 @@ def run_test7():
 
 #tornado.ioloop.IOLoop.current().run_sync(run_test6)
 
-tornado.ioloop.IOLoop.current().run_sync(run_test7)
+#tornado.ioloop.IOLoop.current().run_sync(run_test7)
 
+tornado.ioloop.IOLoop.current().run_sync(run_test8)
+
+run_test9()
+
+tornado.ioloop.IOLoop.current().run_sync(run_test10)
+
+run_test11()
