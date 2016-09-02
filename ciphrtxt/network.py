@@ -140,6 +140,7 @@ class OnionHost(object):
             return False
         pub = json.loads(r.body.decode('UTF-8'))['pubkey']
         self.Pkey = Point.decompress(pub.encode('UTF-8'))
+        return True
     
     def __str__(self):
         return 'CT Onion host @ ' + self._baseurl() + ' key = ' + self.Pkey.compress().decode()

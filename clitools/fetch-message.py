@@ -26,32 +26,38 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from ciphrtxt.keys import PrivateKey, PublicKey
 from ciphrtxt.message import Message
+from ciphrtxt.network import MsgStore, CTClient
 from argparse import ArgumentParser
 import sys
 
-parser = ArgumentParser(description='read message plaintext from stdin and write encoded message to stdout')
-parser.add_argument('recipient', help='recipient public key (hint: starts with P0100)')
-parser.add_argument('--sender', default=None, help='sender private key (optional, omit for anonymous)')
+parser = ArgumentParser(description='read message from server and write to stdout')
+parser.add_argument('msg_id', help='message ID value ("I" field from message)')
+parser.add_argument('--host', default='ciphrtxt.com', help='hostname or IP of server (default ciphrtxt.com)')
+parser.add_argument('--port', default=7754, help='specify server port (default = 7754)')
 clargs = parser.parse_args()
 
-f_key = None
-
-if clargs.sender:
-    f_key = PrivateKey.deserialize(clargs.sender)
-    if f_key is None:
-        print('Error: unable to parse sender key', file=sys.stderr)
-        exit()
-
-t_key = PublicKey.deserialize(clargs.recipient)
-if t_key is None:
-    print('Error: unable to parse recipient key', file=sys.stderr)
+try:
+    if len(clargs.msg_id) != 66:
+        raise Exception()
+    i = int(clargs.msg_id, 16)
+except:
+    print('Format Error: Message ID must be 66 hex characters (I value)', file=sys.stderr)
     exit()
 
-ptext = sys.stdin.read()
+with CTClient() as c:
+    ms = MsgStore(str(clargs.host), int(clargs.port))
+    reachable = ms.refresh()
+    if not reachable:
+        print('Error: host unreachable', file=sys.stderr)
+        exit()
 
-m = Message.encode(ptext, t_key, f_key)
+    try:
+        msg = ms.get_message_by_id(clargs.msg_id)
+        if msg is None:
+            raise Exception()
+    except:
+        print('Error: Unable to retreive message from server', file=sys.stderr)
+        exit()
 
-print(m.serialize().decode())
-    
+    print(msg.serialize().decode())

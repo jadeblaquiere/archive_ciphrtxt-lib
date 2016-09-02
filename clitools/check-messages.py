@@ -26,32 +26,45 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from ciphrtxt.keys import PrivateKey, PublicKey
 from ciphrtxt.message import Message
+from ciphrtxt.keys import PrivateKey
+from ciphrtxt.network import MsgStore, CTClient
 from argparse import ArgumentParser
+import time
+import dateutil.parser as duparser
 import sys
 
-parser = ArgumentParser(description='read message plaintext from stdin and write encoded message to stdout')
-parser.add_argument('recipient', help='recipient public key (hint: starts with P0100)')
-parser.add_argument('--sender', default=None, help='sender private key (optional, omit for anonymous)')
+parser = ArgumentParser(description='check server for messages, output list of message ID to recipient')
+parser.add_argument('recipient', help='recipient private key')
+parser.add_argument('--host', default='ciphrtxt.com', help='hostname or IP address of server')
+parser.add_argument('--port', default=7754, help='specify server port (default = 7754)')
+#parser.add_argument('--since', default=None, help='only look for messages posted after date/time (default = forever)')
 clargs = parser.parse_args()
 
-f_key = None
+#since = None
 
-if clargs.sender:
-    f_key = PrivateKey.deserialize(clargs.sender)
-    if f_key is None:
-        print('Error: unable to parse sender key', file=sys.stderr)
-        exit()
+#if clargs.since is not None:
+#    try:
+#        since = int(duparser.parse(clargs.since).timestamp())
+#    except:
+#        print('Error: Invalid datetime string: ' + clargs.since, file=sys.stderr)
+#        exit()
 
-t_key = PublicKey.deserialize(clargs.recipient)
-if t_key is None:
-    print('Error: unable to parse recipient key', file=sys.stderr)
+k = PrivateKey.deserialize(clargs.recipient)
+if k is None:
+    print('Error: Invalid recipient private key', file=sys.stderr)
     exit()
 
-ptext = sys.stdin.read()
-
-m = Message.encode(ptext, t_key, f_key)
-
-print(m.serialize().decode())
+with CTClient() as c:
+    ms = MsgStore(str(clargs.host), int(clargs.port))
+    reachable = ms.refresh()
+    if not reachable:
+        print('Error: host unreachable', file=sys.stderr)
+        exit()
     
+    hdrs = ms.get_headers()
+    
+    for hdr in hdrs:
+        if hdr.is_for(k):
+            t = time.localtime(hdr.time)
+            print(time.asctime(t) + ' ' + hdr.I.compress().decode())
