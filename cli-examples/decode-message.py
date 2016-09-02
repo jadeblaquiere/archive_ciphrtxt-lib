@@ -51,15 +51,15 @@ if t_key is None:
 
 ctext = sys.stdin.read()
 
-m = Message.deserialize(ctext)
-if not m.decode(t_key):
+msg = Message.deserialize(ctext)
+if not msg.decode(t_key):
     print('Error: cannot decrypt message', file=sys.stderr)
     exit()
 
 if f_key is not None:
-    if not m.is_from(f_key):
+    if not msg.is_from(f_key):
         print('Error: message signature failed', file=sys.stderr)
         exit()
 
-print(m.ptxt)
+print(msg.ptxt)
     

@@ -50,8 +50,6 @@ if t_key is None:
     exit()
 
 ptext = sys.stdin.read()
-
-m = Message.encode(ptext, t_key, f_key)
-
-print(m.serialize().decode())
+msg = Message.encode(ptext, t_key, f_key)
+print(msg.serialize().decode())
     
