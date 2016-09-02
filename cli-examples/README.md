@@ -1,4 +1,4 @@
-# ciphrtxt-lib/clitools
+# ciphrtxt-lib/cli-examples
 Simple CLI tool example for using the ciphrtxt libraries
 
 # Tutorial
@@ -32,7 +32,7 @@ Simple CLI tool example for using the ciphrtxt libraries
     cat ctext | python decode-message.py [RECIPIENT PRIVKEY]
     ```
 
-1. (optional) Decode the message and also verify the recipient
+1. Get Fancy! Decode the message and also verify the recipient
 
     ```
     cat ctext | python decode-message.py [RECIPIENT PRIVKEY] --sender [SENDER PUBKEY]
@@ -40,7 +40,7 @@ Simple CLI tool example for using the ciphrtxt libraries
 
     if you repeat that with a different pubkey (e.g. the recipient pubkey) then it will fail validation
 
-1. (optional) Encode an anonymous message by leaving off the sender when encoding so that the sender key is generated at random
+1. Get Fancy! Encode an anonymous message by leaving off the sender when encoding so that the sender key is generated at random
 
     ```
     echo "Hello, Bob!" | python encode-message.py [RECIPIENT PUBKEY] > ctext
@@ -58,7 +58,7 @@ Simple CLI tool example for using the ciphrtxt libraries
     
     The message will propagate through all the servers in the network (typically within 10-20 seconds) and you can interact with the message store service via http://ciphrtxt.com:7754/ or any of the peers listed in the peer list ... 
 
-1. (optional) Get fancy and create a message and post to a peer all in one command:
+1. Get fancy! Create a message and post to a peer all in one command line:
 
     ```
     python encode-message.py --sender [SENDER PRIVKEY] [RECIPIENT PUBKEY] | python post-message.py --host [PEER HOSTNAME] --port [PEER PORT NUMBER]
@@ -80,7 +80,7 @@ Simple CLI tool example for using the ciphrtxt libraries
     python fetch-message.py [MESSAGE ID]
     ```
     
-1. (optional) Get fancy and fetch the message and download it:
+1. Get fancy! Fetch the message and decode it immediately:
     
     ```
     python fetch-message.py [MESSAGE ID] | python decode-message.py [RECIPIENT PRIVKEY]
