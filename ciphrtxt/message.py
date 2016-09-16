@@ -74,8 +74,8 @@ class MessageHeader (object):
 
     def _serialize_header(self):
         hdr = _msg_api_ver + b':' + ('%08X' % self.time).encode() + b':'
-        hdr += ('%08X' % self.expire).encode() + b':' + self.I.compress() + b':'
-        hdr += self.J.compress() + b':' + self.K.compress()
+        hdr += ('%08X' % self.expire).encode() + b':' + self.Iraw() + b':'
+        hdr += self.Jraw() + b':' + self.Kraw()
         return hdr
 
     def serialize(self):
@@ -112,11 +112,25 @@ class MessageHeader (object):
             return False
         return self.I * privkey.current_privkey_val(self.time) == self.J
 
+    def Iraw(self):
+        return self.I.compress()
+
+    def Jraw(self):
+        return self.J.compress()
+
+    def Kraw(self):
+        return self.K.compress()
+
+    def _decompress(self):
+        return
+
     def __eq__(self,h):
         if self.time != h.time:
             return False
         if self.expire != h.expire:
             return False
+        if isinstance(h, RawMessageHeader):
+            h._decompress()
         if self.I != h.I:
             return False
         if self.J != h.J:
@@ -124,7 +138,7 @@ class MessageHeader (object):
         if self.K != h.K:
             return False
         return True
-    
+
     def __ne__(self, h):
         return not (self == h)
 
@@ -133,14 +147,14 @@ class MessageHeader (object):
             return True
         if self.time < h.time:
             return False
-        return self.I.compress() > h.I.compress()
+        return self.Iraw() > h.Iraw()
 
     def __lt__(self, h):
         if self.time < h.time:
             return True
         if self.time > h.time:
             return False
-        return self.I.compress() < h.I.compress()
+        return self.Iraw() < h.Iraw()
 
     def __ge__(self, h):
         return not self < h
@@ -154,6 +168,71 @@ class MessageHeader (object):
     def __repr__(self):
         return 'MessageHeader.deserialize('+ self.serialize().decode() + ')'
 
+
+class RawMessageHeader(MessageHeader):
+    def __init__(self):
+        super(RawMessageHeader, self).__init__()
+        self._Iraw = None
+        self._Jraw = None
+        self._Kraw = None
+
+    @staticmethod
+    def deserialize(cmsg):
+        if isinstance(cmsg, str):
+            cmsg = cmsg.encode()
+        z = RawMessageHeader()
+        if z._deserialize_header(cmsg):
+            return z
+        else:
+            return None
+
+    def _deserialize_header(self, cmsg):
+        if len(cmsg) < _header_size:
+            return False
+        hdrdata = cmsg[:_header_size].split(b':')
+        if len(hdrdata) != 6:
+            return False
+        if hdrdata[0] != _msg_api_ver:
+            return False
+        self.time = int(hdrdata[1], 16)
+        self.expire = int(hdrdata[2], 16)
+        self._Iraw = hdrdata[3]
+        self._Jraw = hdrdata[4]
+        self._Kraw = hdrdata[5]
+        self.I = None
+        self.J = None
+        self.K = None
+        return True
+
+    def Iraw(self):
+        return self._Iraw
+
+    def Jraw(self):
+        return self._Jraw
+
+    def Kraw(self):
+        return self._Kraw
+
+    def __eq__(self,h):
+        if self.time != h.time:
+            return False
+        if self.expire != h.expire:
+            return False
+        if self.Iraw() != h.Iraw():
+            return False
+        if self.Jraw() != h.Jraw():
+            return False
+        if self.Kraw() != h.Kraw():
+            return False
+        return True
+
+    def __repr__(self):
+        return 'RawMessageHeader.deserialize('+ self.serialize().decode() + ')'
+
+    def _decompress(self):
+        self.I = Point.decompress(self._Iraw)
+        self.J = Point.decompress(self._Jraw)
+        self.K = Point.decompress(self._Kraw)
 
 
 class Message (MessageHeader):
@@ -310,7 +389,7 @@ class Message (MessageHeader):
         sigpriv = int(sha256(DH.compress()).hexdigest(), 16) % _C['n']
         z.sig = _ecdsa.sign(sigpriv, ctxt, header)
         return z
-        
+
     @staticmethod
     def encode_impersonate(ptxt, pubkey, privkey, progress_callback=None, 
                ttl=_default_ttl):
@@ -384,7 +463,7 @@ class Message (MessageHeader):
         if self.ctxt != r.ctxt:
             return False
         return True
-    
+
     def __ne__(self, r):
         return not (self == r)
 
@@ -393,4 +472,3 @@ class Message (MessageHeader):
 
     def __repr__(self):
         return 'Message.deserialize(' + self.serialize() + ')'
-    

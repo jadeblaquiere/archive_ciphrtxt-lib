@@ -37,7 +37,7 @@ import tornado.gen
 mlist = []
 slist = []
 
-nakpriv=int('abdeb268f8d6c62b8404a6cce6fe70a7bc15b4b509f8a5dc4d819cf6478ad459',16)
+nakpriv=int('4b13b7e5f7caf9627b0eefeaa3ee3523a764a8abccdb4e63908454cd01a724a0',16)
 nak = NAK(privkey=nakpriv)
 
 @tornado.gen.coroutine
@@ -48,7 +48,7 @@ def print_message(m):
 def register_message(r):
     slist.append(r)
 
-m = MsgStore('coopr8.com', 7754)  
+m = MsgStore('violet.ciphrtxt.com', 7754)  
 m2 = MsgStore('indigo.bounceme.net', 7754)  
     
 @tornado.gen.coroutine
@@ -70,7 +70,7 @@ def run_test1():
             h = random.choice(hdrs)
             msg = m.get_message(h)
             print('random message retreived as ' + msg.serialize().decode())
-            msg_test = m.get_message_by_id(h.I.compress())
+            msg_test = m.get_message_by_id(h.Iraw())
             assert msg == msg_test
             #print('random message retreived as ' + msg_test.serialize().decode())
             print()
@@ -314,19 +314,19 @@ def run_test11():
     print('... that is all')
     print()
 
-#tornado.ioloop.IOLoop.current().run_sync(run_test1)
+tornado.ioloop.IOLoop.current().run_sync(run_test1)
 
-#tornado.ioloop.IOLoop.current().run_sync(run_test2)
+tornado.ioloop.IOLoop.current().run_sync(run_test2)
 
-#run_test3()
+run_test3()
 
-#tornado.ioloop.IOLoop.current().run_sync(run_test4)
+tornado.ioloop.IOLoop.current().run_sync(run_test4)
 
-#run_test5()
+run_test5()
 
-#tornado.ioloop.IOLoop.current().run_sync(run_test6)
+tornado.ioloop.IOLoop.current().run_sync(run_test6)
 
-#tornado.ioloop.IOLoop.current().run_sync(run_test7)
+tornado.ioloop.IOLoop.current().run_sync(run_test7)
 
 tornado.ioloop.IOLoop.current().run_sync(run_test8)
 

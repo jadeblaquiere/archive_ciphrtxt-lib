@@ -31,7 +31,7 @@ import hashlib
 import mimetypes
 from binascii import hexlify, unhexlify
 import base64
-from ciphrtxt.message import Message, MessageHeader
+from ciphrtxt.message import Message, RawMessageHeader
 from tornado.httpclient import AsyncHTTPClient, HTTPClient, HTTPRequest
 
 from ecpy.curves import curve_secp256k1
@@ -390,7 +390,7 @@ class MsgStore (OnionHost):
         remote = sorted(json.loads(r.decode())['header_list'],
                         key=lambda k: int(k[6:14],16), reverse=True)
         for rstr in reversed(remote):
-            rhdr = MessageHeader()
+            rhdr = RawMessageHeader()
             if rhdr._deserialize_header(rstr.encode()):
                 self._insert_lock.acquire()
                 if rhdr not in self.headers:
@@ -425,14 +425,14 @@ class MsgStore (OnionHost):
         if hdr not in self.headers:
             return None
         if callback is None:
-            r = self.get(_download_message + hdr.I.compress().decode(), nak=nak, onions=onions)
+            r = self.get(_download_message + hdr.Iraw().decode(), nak=nak, onions=onions)
             if r is None:
                 return None
             return Message.deserialize(r)
         else:
-            # print('submitting NestedRequest for ' + self._baseurl() + _download_message + hdr.I.compress().decode() + ' with callback ' + str(callback))
-            return NestedRequest().get(self, _download_message + hdr.I.compress().decode(), callback=self._cb_get_message, callback_next=callback, nak=nak, onions=onions)
-            #r = self.get(_download_message + hdr.I.compress().decode())
+            # print('submitting NestedRequest for ' + self._baseurl() + _download_message + hdr.Iraw().decode() + ' with callback ' + str(callback))
+            return NestedRequest().get(self, _download_message + hdr.Iraw().decode(), callback=self._cb_get_message, callback_next=callback, nak=nak, onions=onions)
+            #r = self.get(_download_message + hdr.Iraw().decode())
             #return self._cb_get_message(r, callback)
     
     def get_message_by_id(self, msgid, callback=None, nak=None, onions=None):
@@ -444,16 +444,16 @@ class MsgStore (OnionHost):
                 return None
             return Message.deserialize(r)
         else:
-            # print('submitting NestedRequest for ' + self._baseurl() + _download_message + hdr.I.compress().decode() + ' with callback ' + str(callback))
+            # print('submitting NestedRequest for ' + self._baseurl() + _download_message + hdr.Iraw().decode() + ' with callback ' + str(callback))
             return NestedRequest().get(self, _download_message + msgid, callback=self._cb_get_message, callback_next=callback, nak=nak, onions=onions)
-            #r = self.get(_download_message + hdr.I.compress().decode())
+            #r = self.get(_download_message + hdr.Iraw().decode())
             #return self._cb_get_message(r, callback)
     
     def post_message(self, msg, callback=None, nak=None, onions=None):
         if msg in self.headers:
             return
         raw = msg.serialize()
-        nhdr = MessageHeader.deserialize(raw)
+        nhdr = RawMessageHeader.deserialize(raw)
         fields = []
         files = [('message', 'message', raw.decode())]
         content_type, body = encode_multipart_formdata(fields, files)

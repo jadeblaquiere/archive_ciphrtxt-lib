@@ -29,7 +29,7 @@
 from Crypto.Random import random
 
 from ciphrtxt.keys import PublicKey, PrivateKey
-from ciphrtxt.message import Message, MessageHeader
+from ciphrtxt.message import Message, MessageHeader, RawMessageHeader
 
 def progress(status):
     print("hash = %x, %d bits, %d iterations" % (status['besthash'], 
@@ -119,16 +119,33 @@ for i in range(0,test_msgs):
     assert not mad.decode_sent(pkey[f], ma.altK)
     assert not mad.is_from(Pkey[f])
     
+    nmh = MessageHeader.deserialize(ms)
+    nrmh = RawMessageHeader.deserialize(ms)
+    
+    assert nmh == nrmh
+
     assert (m != mi)
     if m > mi:
         assert mi < m
         assert m >= mi
         assert not m <= mi
+        assert mi < nmh
+        assert nmh >= mi
+        assert not nmh <= mi
+        assert mi < nrmh
+        assert nrmh >= mi
+        assert not nrmh <= mi
     else:
         assert not mi < m
         assert not m >= mi
         assert m <= mi
-
+        assert not mi < nmh
+        assert not nmh >= mi
+        assert nmh <= mi
+        assert not mi < nrmh
+        assert not nrmh >= mi
+        assert nrmh <= mi
+    
     # tampered/error messages should fail based on signature
     mdte = Message.deserialize(ms)
     mdte.time += 1

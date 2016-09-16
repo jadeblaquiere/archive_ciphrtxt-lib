@@ -22,4 +22,3 @@ Addtional Resources:
 * ciphrtxt crypto-token server : https://github.com/jadeblaquiere/ctcd
 * ciphrtxt crypto-token client : https://github.com/jadeblaquiere/python-ctcoinlib
 * ciphrtxt home page : http://ciphrtxt.com/
-* 
