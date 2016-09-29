@@ -30,11 +30,13 @@ from Crypto.Random import random
 
 from ciphrtxt.keys import PublicKey, PrivateKey
 from ciphrtxt.message import Message, MessageHeader, RawMessageHeader
+from hashlib import sha256
 
 def progress(status):
-    print("hash = %x, %d bits, %d iterations" % (status['besthash'], 
+    print("hash = %x, %d bits, %d, %d iterations" % (status['besthash'], 
                                                  status['bestbits'],
-                                                 status['nhash']))
+                                                 status['nhash'],
+                                                 status['nhash2']))
 
 pkey = []
 Pkey = []
@@ -53,18 +55,58 @@ bobP = PublicKey.deserialize(bob.serialize_pubkey())
 print('keys complete')
 
 mtxt = 'the quick brown fox jumped over the lazy dog'
-msg1 = Message.encode(mtxt, bobP, alice, progress_callback=progress)
+msg1 = Message.encode(mtxt, bobP, alice, progress_callback=progress, version="0100")
 print('message1 = ' + str(msg1))
+print(' header ' + str(msg1.serialize_header()))
+print(' hash ' + str(sha256(msg1.serialize_header()).hexdigest()))
 msg1a = Message.deserialize(msg1.serialize())
 print('message1a = ' + str(msg1a))
+print(' header ' + str(msg1a.serialize_header()))
+print(' hash ' + str(sha256(msg1a.serialize_header()).hexdigest()))
+if msg1a.decode(bob):
+    print('decoded:', msg1a.ptxt)
+msg2 = Message.encode_impersonate(mtxt, aliceP, bob, progress_callback=progress, version="0100")
+print('message2 = ' + str(msg2))
+print(' header ' + str(msg2.serialize_header()))
+print(' hash ' + str(sha256(msg2.serialize_header()).hexdigest()))
+msg2a = Message.deserialize(msg2.serialize())
+print('message2a = ' + str(msg2a))
+print(' header ' + str(msg2a.serialize_header()))
+print(' hash ' + str(sha256(msg2a.serialize_header()).hexdigest()))
+if msg2a.decode(bob):
+    print('decoded:', msg2a.ptxt)
+
+assert (msg1 != msg2)
+if msg1 > msg2:
+    assert msg2 < msg1
+    assert msg1 >= msg2
+    assert not msg1 <= msg2
+else:
+    assert not msg2 < msg1
+    assert not msg1 >= msg2
+    assert msg1 <= msg2
+
+mtxt = 'the quick brown fox jumped over the lazy dog'
+msg1 = Message.encode(mtxt, bobP, alice, progress_callback=progress)
+print('message1 = ' + str(msg1))
+print(' header ' + str(msg1.serialize_header()))
+print(' hash ' + str(sha256(msg1.serialize_header()).hexdigest()))
+msg1a = Message.deserialize(msg1.serialize())
+print('message1a = ' + str(msg1a))
+print(' header ' + str(msg1a.serialize_header()))
+print(' hash ' + str(sha256(msg1a.serialize_header()).hexdigest()))
 if msg1a.decode(bob):
     print('decoded:', msg1a.ptxt)
 msg2 = Message.encode_impersonate(mtxt, aliceP, bob, progress_callback=progress)
 print('message2 = ' + str(msg2))
+print(' header ' + str(msg2.serialize_header()))
+print(' hash ' + str(sha256(msg2.serialize_header()).hexdigest()))
 msg2a = Message.deserialize(msg2.serialize())
-print('message2a = ' + str(msg1a))
+print('message2a = ' + str(msg2a))
+print(' header ' + str(msg2a.serialize_header()))
+print(' hash ' + str(sha256(msg2a.serialize_header()).hexdigest()))
 if msg2a.decode(bob):
-    print('decoded:', msg1a.ptxt)
+    print('decoded:', msg2a.ptxt)
 
 assert (msg1 != msg2)
 if msg1 > msg2:
@@ -87,89 +129,98 @@ for i in range(0,test_keys):
 
 print('generating %d test messages' % test_msgs)
     
-for i in range(0,test_msgs):
-    ztxt = ''
-    for j in range(1,random.randint(2,10)):
-        ztxt += mtxt
-    f = random.randint(0,test_keys-1)
-    t = random.randint(0,test_keys-1)
-    # encode "from"
-    m = Message.encode(ztxt, Pkey[t], pkey[f])
-    # encode reversed - impersonate sender from pubkey
-    mi = Message.encode_impersonate(ztxt, Pkey[f], pkey[t])
-    # encode anonymous - randomized send addr
-    ma = Message.encode(ztxt, Pkey[t])
-    ms = m.serialize()
-    mis = mi.serialize()
-    mas = ma.serialize()
-    print('msg  ' + str(i) + ' = ' + ms.decode())
-    print('msgi ' + str(i) + ' = ' + mis.decode())
-    print('msga ' + str(i) + ' = ' + mas.decode())
-    md = Message.deserialize(ms)
-    mid = Message.deserialize(mis)
-    mad = Message.deserialize(mas)
-    
-    assert md.decode(pkey[t])
-    assert md.decode_sent(pkey[f], m.altK)
-    assert md.is_from(Pkey[f])
-    assert mid.decode(pkey[t])
-    assert mid.decode_sent(pkey[f], mi.altK)
-    assert mid.is_from(Pkey[f])
-    assert mad.decode(pkey[t])
-    assert not mad.decode_sent(pkey[f], ma.altK)
-    assert not mad.is_from(Pkey[f])
-    
-    nmh = MessageHeader.deserialize(ms)
-    nrmh = RawMessageHeader.deserialize(ms)
-    
-    assert nmh == nrmh
+versions=['0100', '0200']
 
-    assert (m != mi)
-    if m > mi:
-        assert mi < m
-        assert m >= mi
-        assert not m <= mi
-        assert mi < nmh
-        assert nmh >= mi
-        assert not nmh <= mi
-        assert mi < nrmh
-        assert nrmh >= mi
-        assert not nrmh <= mi
-    else:
-        assert not mi < m
-        assert not m >= mi
-        assert m <= mi
-        assert not mi < nmh
-        assert not nmh >= mi
-        assert nmh <= mi
-        assert not mi < nrmh
-        assert not nrmh >= mi
-        assert nrmh <= mi
-    
-    # tampered/error messages should fail based on signature
-    mdte = Message.deserialize(ms)
-    mdte.time += 1
-    mdee = Message.deserialize(ms)
-    mdee.expire += 1
-    mdie = Message.deserialize(ms)
-    mdie.I = mdie.I * 2
-    mdie.J = mdie.J * 2
-    mdct = Message.deserialize(ms)
-    mdct.ctxt = mdct.ctxt[:-1]
-    print('mtxt = ' + md.ptxt)
-    for j in range(0,test_keys):
-        if j != t:
-            assert not md.decode(pkey[j])
-            assert not mid.decode(pkey[j])
-            assert not mad.decode(pkey[j])
-        if j != f:
-            assert not md.decode_sent(pkey[j], m.altK)
-            assert not mid.decode_sent(pkey[j], mi.altK)
-            assert not md.is_from(Pkey[j])
-            assert not mid.is_from(Pkey[j])
-        assert not mad.decode_sent(pkey[j], ma.altK)
-        assert not mdte.decode(pkey[j])
-        assert not mdee.decode(pkey[j])
-        assert not mdie.decode(pkey[j])
-        assert not mdct.decode(pkey[j])
-        assert not mad.is_from(Pkey[j])
+for i in range(0,test_msgs):
+    for ver in versions:
+        ztxt = ''
+        for j in range(1,random.randint(2,10)):
+            ztxt += mtxt
+        f = random.randint(0,test_keys-1)
+        t = random.randint(0,test_keys-1)
+        # encode "from"
+        m = Message.encode(ztxt, Pkey[t], pkey[f], version=ver)
+        # encode reversed - impersonate sender from pubkey
+        mi = Message.encode_impersonate(ztxt, Pkey[f], pkey[t], version=ver)
+        # encode anonymous - randomized send addr
+        ma = Message.encode(ztxt, Pkey[t], version=ver)
+        ms = m.serialize()
+        mis = mi.serialize()
+        mas = ma.serialize()
+        print('msg  ' + str(i) + ' = ' + ms.decode())
+        print(' header ' + str(m.serialize_header()))
+        print(' hash ' + str(sha256(m.serialize_header()).hexdigest()))
+        print('msgi ' + str(i) + ' = ' + mis.decode())
+        print(' header ' + str(mi.serialize_header()))
+        print(' hash ' + str(sha256(mi.serialize_header()).hexdigest()))
+        print('msga ' + str(i) + ' = ' + mas.decode())
+        print(' header ' + str(ma.serialize_header()))
+        print(' hash ' + str(sha256(ma.serialize_header()).hexdigest()))
+        md = Message.deserialize(ms)
+        mid = Message.deserialize(mis)
+        mad = Message.deserialize(mas)
+
+        assert md.decode(pkey[t])
+        assert md.decode_sent(pkey[f], m.altK)
+        assert md.is_from(Pkey[f])
+        assert mid.decode(pkey[t])
+        assert mid.decode_sent(pkey[f], mi.altK)
+        assert mid.is_from(Pkey[f])
+        assert mad.decode(pkey[t])
+        assert not mad.decode_sent(pkey[f], ma.altK)
+        assert not mad.is_from(Pkey[f])
+
+        nmh = MessageHeader.deserialize(ms)
+        nrmh = RawMessageHeader.deserialize(ms)
+
+        assert nmh == nrmh
+
+        assert (m != mi)
+        if m > mi:
+            assert mi < m
+            assert m >= mi
+            assert not m <= mi
+            assert mi < nmh
+            assert nmh >= mi
+            assert not nmh <= mi
+            assert mi < nrmh
+            assert nrmh >= mi
+            assert not nrmh <= mi
+        else:
+            assert not mi < m
+            assert not m >= mi
+            assert m <= mi
+            assert not mi < nmh
+            assert not nmh >= mi
+            assert nmh <= mi
+            assert not mi < nrmh
+            assert not nrmh >= mi
+            assert nrmh <= mi
+
+        # tampered/error messages should fail based on signature
+        mdte = Message.deserialize(ms)
+        mdte.time += 1
+        mdee = Message.deserialize(ms)
+        mdee.expire += 1
+        mdie = Message.deserialize(ms)
+        mdie.I = mdie.I * 2
+        mdie.J = mdie.J * 2
+        mdct = Message.deserialize(ms)
+        mdct.ctxt = mdct.ctxt[:-1]
+        print('mtxt = ' + md.ptxt)
+        for j in range(0,test_keys):
+            if j != t:
+                assert not md.decode(pkey[j])
+                assert not mid.decode(pkey[j])
+                assert not mad.decode(pkey[j])
+            if j != f:
+                assert not md.decode_sent(pkey[j], m.altK)
+                assert not mid.decode_sent(pkey[j], mi.altK)
+                assert not md.is_from(Pkey[j])
+                assert not mid.is_from(Pkey[j])
+            assert not mad.decode_sent(pkey[j], ma.altK)
+            assert not mdte.decode(pkey[j])
+            assert not mdee.decode(pkey[j])
+            assert not mdie.decode(pkey[j])
+            assert not mdct.decode(pkey[j])
+            assert not mad.is_from(Pkey[j])

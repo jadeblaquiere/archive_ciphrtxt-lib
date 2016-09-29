@@ -81,7 +81,7 @@ def run_test1():
         Bpriv.randomize(4)
         Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
         mtxt = 'the quick brown fox jumped over the lazy dog'
-        msg = Message.encode(mtxt, Bpub, Apriv)
+        msg = Message.encode(mtxt, Bpub, Apriv, version='0100')
         r = m.post_message(msg)
         print('message posted, server metadata' + str(r))
         print()
@@ -128,13 +128,13 @@ def run_test4():
         print('Encoding messages ')
         print()
         for i in range(0,5):
-            msg = Message.encode(mtxt, Bpub, Apriv)
+            msg = Message.encode(mtxt, Bpub, Apriv, version='0100')
             msgs.append(msg)
         print('Posting messages')
         print()
         slist = []
         for msg in msgs:
-            h = MessageHeader.deserialize(msg._serialize_header())
+            h = MessageHeader.deserialize(msg.serialize_header())
             r = yield m.post_message(msg, callback=register_message)
             print('sent async post for ' + h.serialize().decode())
             print()
@@ -207,7 +207,7 @@ def run_test7():
         print('Encoding messages ')
         print()
         for i in range(0,5):
-            msg = Message.encode(mtxt, Bpub, Apriv)
+            msg = Message.encode(mtxt, Bpub, Apriv, version='0100')
             msgs.append(msg)
         for msg in msgs:
             orand = random.sample(onions, min(nonion-1,3))
@@ -292,10 +292,10 @@ def run_test10():
         print('Encoding messages ')
         print()
         for i in range(0,5):
-            msg = Message.encode(mtxt, Bpub, Apriv)
+            msg = Message.encode(mtxt, Bpub, Apriv, version='0100')
             msgs.append(msg)
         for msg in msgs:
-            h = MessageHeader.deserialize(msg._serialize_header())
+            h = MessageHeader.deserialize(msg.serialize_header())
             orand = random.sample(onions, min(nonion-1,3))
             print('posting via onions')
             for o in orand:
