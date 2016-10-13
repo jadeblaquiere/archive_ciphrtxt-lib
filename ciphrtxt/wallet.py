@@ -61,7 +61,7 @@ class WalletPubkey (object):
     def set_network(cls, name="ct-indigo"):
         if name not in _network_id:
             raise Value
-        cls.network = _network_id['name']
+        cls.network = _network_id[name]
 
     def serialize_pubkey(self):
         if self.P is None:

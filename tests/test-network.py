@@ -48,8 +48,8 @@ def print_message(m):
 def register_message(r):
     slist.append(r)
 
-m = MsgStore('violet.ciphrtxt.com', 7754)  
-m2 = MsgStore('indigo.bounceme.net', 7754)  
+m = MsgStore('violet.ciphrtxt.com', 7754)
+m2 = MsgStore('indigo.ciphrtxt.com', 7754)
     
 @tornado.gen.coroutine
 def run_test1():
@@ -81,9 +81,10 @@ def run_test1():
         Bpriv.randomize(4)
         Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
         mtxt = 'the quick brown fox jumped over the lazy dog'
-        msg = Message.encode(mtxt, Bpub, Apriv, version='0100')
-        r = m.post_message(msg)
-        print('message posted, server metadata' + str(r))
+        for ver in ['0100', ['0200']]:
+            msg = Message.encode(mtxt, Bpub, Apriv, version=ver)
+            r = m.post_message(msg)
+            print('message posted, server metadata' + str(r))
         print()
 
 @tornado.gen.coroutine
@@ -123,22 +124,23 @@ def run_test4():
         Bpriv.randomize(4)
         Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
         # asynchronous calls
-        mtxt = 'the quick brown fox jumped over the lazy dog'
-        msgs = []
-        print('Encoding messages ')
-        print()
-        for i in range(0,5):
-            msg = Message.encode(mtxt, Bpub, Apriv, version='0100')
-            msgs.append(msg)
-        print('Posting messages')
-        print()
-        slist = []
-        for msg in msgs:
-            h = MessageHeader.deserialize(msg.serialize_header())
-            r = yield m.post_message(msg, callback=register_message)
-            print('sent async post for ' + h.serialize().decode())
+        for ver in ['0100', '0200']:
+            mtxt = 'the quick brown fox jumped over the lazy dog'
+            msgs = []
+            print('Encoding messages ')
             print()
-            mtxt += 'the quick brown fox jumped over the lazy dog'
+            for i in range(0,5):
+                msg = Message.encode(mtxt, Bpub, Apriv, version=ver)
+                msgs.append(msg)
+            print('Posting messages')
+            print()
+            slist = []
+            for msg in msgs:
+                h = MessageHeader.deserialize(msg.serialize_header())
+                r = yield m.post_message(msg, callback=register_message)
+                print('sent async post for ' + h.serialize().decode())
+                print()
+                mtxt += 'the quick brown fox jumped over the lazy dog'
 
 def run_test5():
     print('sent')
@@ -202,23 +204,24 @@ def run_test7():
         Bpriv = PrivateKey()
         Bpriv.randomize(4)
         Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
-        mtxt = 'the quick brown fox jumped over the lazy dog'
-        msgs = []
-        print('Encoding messages ')
-        print()
-        for i in range(0,5):
-            msg = Message.encode(mtxt, Bpub, Apriv, version='0100')
-            msgs.append(msg)
-        for msg in msgs:
-            orand = random.sample(onions, min(nonion-1,3))
-            print('posting via onions')
-            for o in orand:
-                print('    ' + str(o))
+        for ver in ['0100', '0200']:
+            mtxt = 'the quick brown fox jumped over the lazy dog'
+            msgs = []
+            print('Encoding messages ')
             print()
-            conf = orand[0].post_message(msg, nak=nak, onions=orand[1:])
-            # conf = m.post_message(msg, nak=nak, onions=[m, m2])
-            # conf = m2.post_message(msg, nak=nak, onions=[m2])
-            print(conf)
+            for i in range(0,5):
+                msg = Message.encode(mtxt, Bpub, Apriv, version=ver)
+                msgs.append(msg)
+            for msg in msgs:
+                orand = random.sample(onions, min(nonion-1,3))
+                print('posting via onions')
+                for o in orand:
+                    print('    ' + str(o))
+                print()
+                conf = orand[0].post_message(msg, nak=nak, onions=orand[1:])
+                # conf = m.post_message(msg, nak=nak, onions=[m, m2])
+                # conf = m2.post_message(msg, nak=nak, onions=[m2])
+                print(conf)
         
 @tornado.gen.coroutine
 def run_test8():
@@ -287,25 +290,26 @@ def run_test10():
         Bpriv.randomize(4)
         Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
         # asynchronous calls
-        mtxt = 'the quick brown fox jumped over the lazy dog'
-        msgs = []
-        print('Encoding messages ')
-        print()
-        for i in range(0,5):
-            msg = Message.encode(mtxt, Bpub, Apriv, version='0100')
-            msgs.append(msg)
-        for msg in msgs:
-            h = MessageHeader.deserialize(msg.serialize_header())
-            orand = random.sample(onions, min(nonion-1,3))
-            print('posting via onions')
-            for o in orand:
-                print('    ' + str(o))
+        for ver in ['0100', '0200']:
+            mtxt = 'the quick brown fox jumped over the lazy dog'
+            msgs = []
+            print('Encoding messages ')
             print()
-            r = yield orand[0].post_message(msg, nak=nak, onions=orand[1:], callback=register_message)
-            # conf = m.post_message(msg, nak=nak, onions=[m, m2])
-            # conf = m2.post_message(msg, nak=nak, onions=[m2])
-            print('sent post for header ' + h.serialize().decode())
-            print()# msg = m.get_message(h, nak=nak, onions=[m, m2])
+            for i in range(0,5):
+                msg = Message.encode(mtxt, Bpub, Apriv, version=ver)
+                msgs.append(msg)
+            for msg in msgs:
+                h = MessageHeader.deserialize(msg.serialize_header())
+                orand = random.sample(onions, min(nonion-1,3))
+                print('posting via onions')
+                for o in orand:
+                    print('    ' + str(o))
+                print()
+                r = yield orand[0].post_message(msg, nak=nak, onions=orand[1:], callback=register_message)
+                # conf = m.post_message(msg, nak=nak, onions=[m, m2])
+                # conf = m2.post_message(msg, nak=nak, onions=[m2])
+                print('sent post for header ' + h.serialize().decode())
+                print()# msg = m.get_message(h, nak=nak, onions=[m, m2])
         
 def run_test11():
     print('sent')

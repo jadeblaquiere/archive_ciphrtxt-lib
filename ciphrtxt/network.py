@@ -387,8 +387,9 @@ class MsgStore (OnionHost):
             return False
         self.servertime = servertime
         self.cache_dirty = False
-        remote = sorted(json.loads(r.decode())['header_list'],
-                        key=lambda k: int(k[6:14],16), reverse=True)
+        #remote = sorted(json.loads(r.decode())['header_list'],
+        #                key=lambda k: int(k[6:14],16), reverse=True)
+        remote = json.loads(r.decode())['header_list']
         for rstr in reversed(remote):
             rhdr = RawMessageHeader()
             if rhdr._deserialize_header(rstr.encode()):

@@ -30,8 +30,13 @@ from ciphrtxt.wallet import WalletPubkey, WalletPrivkey
 alice = WalletPrivkey()
 alice.randomize()
 
+print()
+print('ciphrtxt-indigo network : ')
+print()
+
 print('Alice key hex value = %64x' % alice.p)
-print('Alice key point = ' + alice.P.compress().decode())
+print('Alice key point (compressed) = ' + alice.P.compress().decode())
+print('Alice key point = ' + alice.P.uncompressed_format().decode())
 print('Alice privkey (WIF) = ' + alice.serialize_privkey().decode())
 print('Alice pubkey (WIF) = ' + alice.serialize_pubkey().decode())
 print('Alice privkey (WIF), "compressed" = ' + alice.serialize_privkey_compressed().decode())
@@ -41,3 +46,25 @@ exp = alice.serialize_privkey()
 exP = alice.serialize_pubkey()
 
 apriv = WalletPrivkey.deserialize(exp)
+
+print()
+print('ciphrtxt-red (test) network : ')
+print()
+
+WalletPubkey.set_network('ct-red')
+
+bob = WalletPrivkey()
+bob.randomize()
+
+print('Bob key hex value = %64x' % bob.p)
+print('Bob key point (compressed) = ' + bob.P.compress().decode())
+print('Bob key point = ' + bob.P.uncompressed_format().decode())
+print('Bob privkey (WIF) = ' + bob.serialize_privkey().decode())
+print('Bob pubkey (WIF) = ' + bob.serialize_pubkey().decode())
+print('Bob privkey (WIF), "compressed" = ' + bob.serialize_privkey_compressed().decode())
+print('Bob pubkey (WIF), "compressed" = ' + bob.serialize_pubkey_compressed().decode())
+
+exp = bob.serialize_privkey()
+exP = bob.serialize_pubkey()
+
+bpriv = WalletPrivkey.deserialize(exp)
