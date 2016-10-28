@@ -30,6 +30,7 @@ from binascii import hexlify, unhexlify
 from base64 import b64encode, b64decode
 import time
 from hashlib import sha256
+import struct
 
 from Crypto.Random import random
 from Crypto.Cipher import AES
@@ -60,21 +61,34 @@ _ecdsa = ECDSA()
 _pfmt = '%%0%dx' % (((_C['bits'] + 7) >> 3) << 1)
 _mfmt = '%%0%dx' % (((_masksize + 7) >> 3) << 1)
 
+# 256 bit message seed
+_s_bytes = 32 
+# 64 bit plaintext length field
+_l_bytes = 8
+
+_lfmt = '%016x'
+
 _header_size_v1 = (5+1+8+1+8+1+66+1+66+1+66)
 _header_size_w_sig_v1 = (5+1+8+1+8+1+66+1+66+1+66+1+64+1+64)
 
 #v2 header = "M" + b"x02\x00\x00" (version) + time (32 bit/4 byte uint) + 
-#            expire (32 bit/4 byte uint) + I + J + K (33 byte ECC points)
-#          = 111 bytes (binary) -> 148bytes (b64) 
-_header_size_v2 = (1+3+4+4+33+33+33)
+#            expire (32 bit/4 byte uint) + I + J + K (33 byte ECC points) +
+#            blocklen (32 bit/4 byte uint) + reserved (8 bytes)
+#          = 123 bytes (binary) -> 164bytes (b64) 
+_header_size_v2 = (1+3+4+4+33+33+33+4+8)
 _header_size_b64_v2 = (_header_size_v2 * 4 // 3)
-#          + r + s (32 byte uints) + nonce (5 byte uint) = 69 bytes (binary) -> 92 bytes (b64)
-#   total  : 180 bytes (binary) -> 240 bytes b64
+#          + r + s (32 byte uints *2) + nonce (5 byte uint) 
+#          = 69 bytes (binary) -> 92 bytes (b64)
+#   total  : 192 bytes (binary) -> 256 bytes b64
 _header_size_w_sig_v2 = (_header_size_v2+32+32+5)
 _header_size_w_sig_b64_v2 = (_header_size_w_sig_v2 * 4 // 3)
 
-#minimum valid message payload is 1 32-byte seed value + 1 16-byte block 
-_minimum_cipher_payload = 48
+_v2_blocksize = 192
+_v2_blocksize_b64 = (_v2_blocksize * 4 // 3)
+
+#minimum valid message payload = one "block" 
+_minimum_cipher_payload = _v2_blocksize
+_minimum_cipher_payload_b64 = (_minimum_cipher_payload * 4 // 3)
 
 _default_ttl = (7*24*60*60)
 
@@ -90,6 +104,8 @@ class MessageHeader (object):
         self.K = None
         self.sig = None
         self.nonce = None
+        self.blocklen = 0
+        self.reserved = 0
         self.version = "0200"
 
     def _short_header_v1(self):
@@ -99,9 +115,12 @@ class MessageHeader (object):
         return hdr
 
     def _short_header_v2(self):
+        # print('short header blocklen = ' + str(self.blocklen))
         hdr = _msg_api_ver_v2 + unhexlify('%08X' % self.time) 
         hdr += unhexlify('%08X' % self.expire) + unhexlify(self.Iraw())
         hdr += unhexlify(self.Jraw()) + unhexlify(self.Kraw())
+        hdr += unhexlify('%08X' % self.blocklen)
+        hdr += unhexlify('%016X' % self.reserved)
         return b64encode(hdr)
 
     def _short_header(self):
@@ -179,6 +198,9 @@ class MessageHeader (object):
         self.I = Point.decompress(hexmsg[24:90])
         self.J = Point.decompress(hexmsg[90:156])
         self.K = Point.decompress(hexmsg[156:222])
+        self.blocklen = int(hexmsg[222:230], 16)
+        self.reserved = int(hexmsg[230:246], 16)
+        # print('deserialize blocklen = ' + str(self.blocklen))
         if len(cmsg) >= _header_size_w_sig_b64_v2:
             sig_b64 = cmsg[_header_size_b64_v2:_header_size_w_sig_b64_v2]
             sighex = hexlify(b64decode(sig_b64))
@@ -317,6 +339,8 @@ class RawMessageHeader(MessageHeader):
         self.I = None
         self.J = None
         self.K = None
+        self.blocklen = int(hexmsg[222:230], 16)
+        self.reserved = int(hexmsg[230:246], 16)
         if len(cmsg) >= _header_size_w_sig_b64_v2:
             sig_b64 = cmsg[_header_size_b64_v2:_header_size_w_sig_b64_v2]
             sighex = hexlify(b64decode(sig_b64))
@@ -395,9 +419,15 @@ class Message (MessageHeader):
         return True
 
     def _deserialize_v2(self,cmsg):
-        if len(cmsg) < (_header_size_w_sig_b64_v2 + _minimum_cipher_payload):
+        if (len(cmsg) & 0xFF) != 0:
+            return False
+        if len(cmsg) < (_header_size_w_sig_b64_v2 + _minimum_cipher_payload_b64):
             return False
         if not self._deserialize_header_v2(cmsg[:_header_size_w_sig_b64_v2]):
+            return False
+        blocks = (len(cmsg) - _header_size_w_sig_b64_v2) // _v2_blocksize_b64
+        if self.blocklen != blocks:
+            print('block length mismatch ' + str(blocks) + ' != ' + str(self.blocklen))
             return False
         try:
             self.ctxt = b64decode(cmsg[_header_size_w_sig_b64_v2:])
@@ -467,7 +497,10 @@ class Message (MessageHeader):
         s = int(hexlify(etxt[:32]), 16)
         if self.I != (_G * s):
             return False
-        self.ptxt = etxt[32:].decode()
+        l = int(hexlify(etxt[32:40]), 16)
+        if len(etxt) < (40 + l):
+            return False
+        self.ptxt = etxt[40:40+l].decode()
         self.s = s
         self.h = int(sha256(etxt).hexdigest(), 16)
         return True
@@ -682,7 +715,10 @@ class Message (MessageHeader):
                         progress_callback(status)
                 status['nhash'] += 1
             J = P * s
-            stxt = unhexlify(_pfmt % s) + ptxt.encode()
+            ptxtenc = ptxt.encode()
+            ptxtlen = len(ptxtenc)
+            padlen = _v2_blocksize - ((ptxtlen + _s_bytes + _l_bytes) % _v2_blocksize)
+            stxt = unhexlify(_pfmt % s) + unhexlify(_lfmt % ptxtlen) +  ptxtenc + (struct.pack('>B',padlen) * padlen)
             h = int(sha256(stxt).hexdigest(), 16)
             k = (q * h) % _C['n']
             K = _G * k
@@ -699,10 +735,12 @@ class Message (MessageHeader):
             self.I = I
             self.J = J
             self.K = K
+            self.blocklen = len(stxt) // _v2_blocksize
             self.ptxt = ptxt
             self.ctxt = ctxt
             self.altK = altK
             self.h = h
+            print("message len " + str(ptxtlen) + " + 40 + padlen " + str(padlen) + " = total " + str(len(stxt)) + ", encoded to " + str(len(ctxt)) + " bytes, " + str(self.blocklen) + " blocks")
             header = self._short_header_v2()
             sigpriv = int(sha256(DH.compress()).hexdigest(), 16) % _C['n']
             self.sig = _ecdsa.sign(sigpriv, ctxt, header)
@@ -773,7 +811,10 @@ class Message (MessageHeader):
                         progress_callback(status)
                 status['nhash'] += 1
             J = Q * s
-            stxt = unhexlify(_pfmt % s) + ptxt.encode()
+            ptxtenc = ptxt.encode()
+            ptxtlen = len(ptxtenc)
+            padlen = _v2_blocksize - ((ptxtlen + _s_bytes + _l_bytes) % _v2_blocksize)
+            stxt = unhexlify(_pfmt % s) + unhexlify(_lfmt % ptxtlen) +  ptxtenc + (b'\x00' * padlen)
             h = int(sha256(stxt).hexdigest(), 16)
             k = (q * h) % _C['n']
             K = P * h
@@ -783,6 +824,7 @@ class Message (MessageHeader):
             counter = Counter.new(128,initial_value=iv)
             cryptor = AES.new(keybin, AES.MODE_CTR, counter=counter)
             ctxt = cryptor.encrypt(stxt)
+            print("message imp len " + str(ptxtlen) + " + 40 + padlen " + str(padlen) + " = total " + str(len(stxt)) + ", encoded to " + str(len(ctxt)) + " bytes")
             altK = Q * h
             self.time = tval
             self.expire = texp
@@ -790,6 +832,7 @@ class Message (MessageHeader):
             self.I = I
             self.J = J
             self.K = K
+            self.blocklen = len(stxt) // _v2_blocksize
             self.ptxt = ptxt
             self.ctxt = ctxt
             self.altK = altK
@@ -849,3 +892,4 @@ class Message (MessageHeader):
 
     def __repr__(self):
         return 'Message.deserialize(' + self.serialize() + ')'
+

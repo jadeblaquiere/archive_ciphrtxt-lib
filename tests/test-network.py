@@ -328,6 +328,8 @@ tornado.ioloop.IOLoop.current().run_sync(run_test4)
 
 run_test5()
 
+quit()
+
 tornado.ioloop.IOLoop.current().run_sync(run_test6)
 
 tornado.ioloop.IOLoop.current().run_sync(run_test7)

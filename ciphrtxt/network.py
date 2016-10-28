@@ -33,6 +33,7 @@ from binascii import hexlify, unhexlify
 import base64
 from ciphrtxt.message import Message, RawMessageHeader
 from tornado.httpclient import AsyncHTTPClient, HTTPClient, HTTPRequest
+import tornado.gen
 
 from ecpy.curves import curve_secp256k1
 from ecpy.point import Point, Generator
@@ -129,7 +130,7 @@ class OnionHost(object):
         self.host = host
         self.port = port
         self.Pkey = Pkey
-    
+
     def _baseurl(self):
         return 'http://' + self.host + ':' + str(self.port) + '/'
 
@@ -141,10 +142,10 @@ class OnionHost(object):
         pub = json.loads(r.body.decode('UTF-8'))['pubkey']
         self.Pkey = Point.decompress(pub.encode('UTF-8'))
         return True
-    
+
     def __str__(self):
         return 'CT Onion host @ ' + self._baseurl() + ' key = ' + self.Pkey.compress().decode()
-    
+
     def get(self, path, nak=None, callback=None, headers=None, onions=None):
         if onions is None:
             if nak is not None:
@@ -153,7 +154,7 @@ class OnionHost(object):
         if nak is None:
             raise ValueError('Onion routing requires NAK is provided')
         return OnionRequest().get(self, path, nak=nak, callback=callback, headers=headers, onions=onions)
-    
+
     def post(self, path, body, nak=None, callback=None, headers=None, onions=None):
         if onions is None:
             if nak is not None:

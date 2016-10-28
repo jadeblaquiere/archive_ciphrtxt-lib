@@ -118,6 +118,27 @@ else:
     assert not msg1 >= msg2
     assert msg1 <= msg2
 
+print('testing message lengths')
+
+for i in range(1,1024):
+    print('encoding length ' + str(i))
+    itxt = (mtxt * ((i // len(mtxt)) + 1))[:i]
+    msg1 = Message.encode(itxt, bobP, alice)
+    msg1s = msg1.serialize()
+    msg1a = Message.deserialize(msg1s)
+    if msg1a.decode(bob):
+        print('decoded:', msg1a.ptxt)
+        print('len = ' + str(len(msg1s)) + ', blocks  = ', msg1.blocklen)
+    else:
+        print('failed for block length ' + str(i))
+        print('message1 = ' + str(msg1))
+        print(' header ' + str(msg1.serialize_header()))
+        print(' hash ' + str(sha256(msg1.serialize_header()).hexdigest()))
+        print(' alice = ' + alice.serialize())
+        print(' bobP = ' + bobP.serialize())
+        quit()
+
+    
 print('generating %d test keys' % test_keys)
     
 for i in range(0,test_keys):
