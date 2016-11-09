@@ -53,13 +53,13 @@ _G = Generator.init(_C['G'][0], _C['G'][1])
 ECDSA.set_generator(_G)
 _ecdsa = ECDSA()
 
-_statusPath = 'api/status/'
+_statusPath = 'api/v2/status/'
 
-_server_time = 'api/time/'
-_headers_since = 'api/header/list/since/'
-_download_message = 'api/message/download/'
-_upload_message = 'api/message/upload/'
-_peer_list = 'api/peer/list/'
+_server_time = 'api/v2/time/'
+_headers_since = 'api/v2/headers?since='
+_download_message = 'api/v2/messages/'
+_upload_message = 'api/v2/messages/'
+_peer_list = 'api/v2/peers/'
 
 _cache_expire_time = 5 # seconds
 _high_water = 50
