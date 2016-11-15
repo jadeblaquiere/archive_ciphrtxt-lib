@@ -81,7 +81,7 @@ def run_test1():
         Bpriv.randomize(4)
         Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
         mtxt = 'the quick brown fox jumped over the lazy dog'
-        for ver in ['0100', ['0200']]:
+        for ver in ['0200']:
             msg = Message.encode(mtxt, Bpub, Apriv, version=ver)
             r = m.post_message(msg)
             print('message posted, server metadata' + str(r))
@@ -124,7 +124,7 @@ def run_test4():
         Bpriv.randomize(4)
         Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
         # asynchronous calls
-        for ver in ['0100', '0200']:
+        for ver in ['0200']:
             mtxt = 'the quick brown fox jumped over the lazy dog'
             msgs = []
             print('Encoding messages ')
@@ -204,7 +204,7 @@ def run_test7():
         Bpriv = PrivateKey()
         Bpriv.randomize(4)
         Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
-        for ver in ['0100', '0200']:
+        for ver in ['0200']:
             mtxt = 'the quick brown fox jumped over the lazy dog'
             msgs = []
             print('Encoding messages ')
@@ -290,7 +290,7 @@ def run_test10():
         Bpriv.randomize(4)
         Bpub = PublicKey.deserialize(Apriv.serialize_pubkey())
         # asynchronous calls
-        for ver in ['0100', '0200']:
+        for ver in ['0200']:
             mtxt = 'the quick brown fox jumped over the lazy dog'
             msgs = []
             print('Encoding messages ')

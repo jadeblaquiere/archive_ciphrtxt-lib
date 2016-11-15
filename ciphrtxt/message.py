@@ -893,3 +893,88 @@ class Message (MessageHeader):
     def __repr__(self):
         return 'Message.deserialize(' + self.serialize() + ')'
 
+#v2 onion outer header = "O" + b"x02\x00" (version) 
+#                      + session pubkey (33 bytes ECC point)
+#                      + r,s, (ECDSA Signature) - 2x 32 bytes
+#
+# signature is calculated on encrypted inner header 
+_onion_outer_header_size_v2 = (1 + 2 + 33 + 32 + 32)
+
+# "R" = Remote -> The enclosed content is intended for a remote onion server
+#    - Path is ignored
+#    - get/post is ignored (should be post)
+#    - blocklen_in validated
+#    - nak, ECDSA signature validated
+#    - Enclosed Payload is truncated/extended to blocklen_out (with pseudorandom)
+#    - Server add random (session) pubkey to forwarded header
+#    - Server uses it's own NAK in place of incoming NAK
+#    - Enclosed Payload is forwarded to HOST:PORT/onion?NAK
+#    - Fordwarded Remote Responses are decrypted and reencrypted using ECDH session key
+#    - Response is encrypted using ECDH key based on Replykey and server private key
+
+# "L" = Local -> The enclosed content is intended for a local URL path
+#    - host:port is ignored (should be zero len)
+#    - blocklen_in is validated
+#    - Enclosed Payload is truncated to blocklen_out
+#    - Enclosed Payload is forwarded to localhost:localport/PATH via GET/POST
+#    - Response is encrypted using ECDH key based on Replykey and server private key
+
+#v2 onion inner local  = 16-byte initialization vector + header_blocks (1 byte block count)
+#                      + "L" (1 byte remote or local) + "G"/"P" (1 byte method type get/post)
+#                      + len(path) (1 byte int) + path (len byte string)
+#                      + len(replykey = 33) + replykey (33 byte ECC Point)
+#                      + blocks_in (32 bit int) + blocks_out (32 bit int)
+#                      + pad so that outer_header + inner_header === 0 mod 192
+
+#v2 onion inner remote = 16-byte initialization vector + header_blocks (1 byte block count)
+#                      + "R" (1 byte remote or local) + "P" (1 byte method type get/post)
+#                      + len(nak) (1 byte = 33) + nak (33 byte ECC point)
+#                      + len(host) (1 byte) + host (len byte string)
+#                      + len(port) (1 byte int) + port (len byte int) 
+#                      + len(replykey - either 33 or 0) + replykey (either 0 or 33 bytes)
+#                      + blocks_in (32 bit int) + blocks_out (32 bit int)
+#                      + pad so that outer_header + inner_header === 0 mod 192
+
+# 255 minus decoration --> "http://localhost:7754/" (len = 21)
+_max_url_len = 234
+
+class OnionHeader (object):
+    def __init__(self):
+        self.version = "0200"
+        self.method = "get"
+        self.host = None
+        self.port = 0
+        self.path = None
+        self.blocksin = 0
+        self.blocksout = 0
+        self.padlen = 0
+        self.header_blocks = 0
+        self.header = None
+
+    def _generate_local(self, path, msg_blocks, nak, reply_pubkey_point, method="POST", extra_blocks=0):
+        inner_header= b'\x00' * 16
+        outer_header= b''
+        inner_header += b'L'
+        if method.lower() == 'post':
+            inner_header += b'P'
+        else:
+            inner_header += b'G'
+        # nak len = 33 bytes
+        inner_header += b'\x00'
+        inner_header += nak.pubkeybin()
+        # host len = 0
+        inner_header += b'\x00'
+        # port len = 0
+        inner_header += b'\x00'
+        if isinstance(path, str):
+            path = path.encode()
+        if len(path) > _max_url_len:
+            return None
+        inner_header += unhexlify('%02x' % len(path))
+        inner_header += path
+        inner_header += b'\x21'
+        inner_header += unhexlify(reply_pubkey_point.serialize())
+
+    def _generate_remote():
+        pass
+
