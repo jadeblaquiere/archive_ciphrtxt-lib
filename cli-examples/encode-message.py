@@ -51,5 +51,5 @@ if t_key is None:
 
 ptext = sys.stdin.read()
 msg = Message.encode(ptext, t_key, f_key)
-print(msg.serialize().decode())
+sys.stdout.write(msg.serialize().decode())
     
