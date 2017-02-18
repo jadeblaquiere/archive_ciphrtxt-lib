@@ -740,7 +740,7 @@ class Message (MessageHeader):
             self.ctxt = ctxt
             self.altK = altK
             self.h = h
-            print("message len " + str(ptxtlen) + " + 40 + padlen " + str(padlen) + " = total " + str(len(stxt)) + ", encoded to " + str(len(ctxt)) + " bytes, " + str(self.blocklen) + " blocks")
+            # print("message len " + str(ptxtlen) + " + 40 + padlen " + str(padlen) + " = total " + str(len(stxt)) + ", encoded to " + str(len(ctxt)) + " bytes, " + str(self.blocklen) + " blocks")
             header = self._short_header_v2()
             sigpriv = int(sha256(DH.compress()).hexdigest(), 16) % _C['n']
             self.sig = _ecdsa.sign(sigpriv, ctxt, header)
@@ -824,7 +824,7 @@ class Message (MessageHeader):
             counter = Counter.new(128,initial_value=iv)
             cryptor = AES.new(keybin, AES.MODE_CTR, counter=counter)
             ctxt = cryptor.encrypt(stxt)
-            print("message imp len " + str(ptxtlen) + " + 40 + padlen " + str(padlen) + " = total " + str(len(stxt)) + ", encoded to " + str(len(ctxt)) + " bytes")
+            # print("message imp len " + str(ptxtlen) + " + 40 + padlen " + str(padlen) + " = total " + str(len(stxt)) + ", encoded to " + str(len(ctxt)) + " bytes")
             altK = Q * h
             self.time = tval
             self.expire = texp
