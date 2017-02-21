@@ -54,3 +54,5 @@ with CTClient() as c:
     if metadata is None:
         print('Error: upload failed', file=sys.stderr)
         exit()
+    
+    print("message ID " + str(msg.Iraw()) + " posted to " + clargs.host)
