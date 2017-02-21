@@ -378,6 +378,11 @@ class RawMessageHeader(MessageHeader):
         self.J = Point.decompress(self._Jraw)
         self.K = Point.decompress(self._Kraw)
 
+    def is_for(self, privkey):
+        if self.I is None:
+            self._decompress()
+        return super(RawMessageHeader, self).is_for(privkey)
+
 
 class Message (MessageHeader):
     def __init__(self, cmsg=None):
