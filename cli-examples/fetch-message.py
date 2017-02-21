@@ -60,4 +60,4 @@ with CTClient() as c:
         print('Error: Unable to retreive message from server', file=sys.stderr)
         exit()
 
-    print(msg.serialize().decode())
+    sys.stdout.write(msg.serialize().decode())
