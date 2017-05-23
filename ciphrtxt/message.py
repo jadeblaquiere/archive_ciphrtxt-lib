@@ -393,7 +393,7 @@ class Message (MessageHeader):
         self.altK = None
         self.h = None
         if cmsg is not None:
-            self.import_message(cmsg)
+            self._deserialize(cmsg)
 
     @staticmethod
     def deserialize(cmsg):
