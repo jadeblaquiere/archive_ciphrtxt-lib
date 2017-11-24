@@ -61,8 +61,9 @@ _Pfmt = '%%0%dX' % (((_C['bits'] + 7) >> 3) << 1)
 _Mfmt = '%%0%dX' % (((_masksize + 7) >> 3) << 1)
 
 # v1.0 in fixed point
-_format_version = 0x0100
-
+_format_version_v1 = 0x0100
+_format_version_v2 = 0x0200
+_format_version_v3 = 0x0300
 
 #def compress_point(P):
 #    return ('03' if (P[1] % 2) else '02') + (_pfmt % P[0]).encode()
@@ -81,6 +82,7 @@ _format_version = 0x0100
 class PublicKey (object):
     def __init__(self, name=None):
         self.P = Point(0,0)
+        self.version = _format_version_v2
         self.addr = {'mask': 0, 'mtgt': 0}
         self.t0 = 0
         self.ts = 0
@@ -130,7 +132,7 @@ class PublicKey (object):
         return P
 
     def serialize_pubkey(self):
-        ekey = ('P%04x' % _format_version).encode()
+        ekey = ('P%04x' % self.version).encode()
         ekey += b':K' + self.P.compress().upper()
         ekey += b':M' + (_Mfmt % self.addr['mask']).encode()
         ekey += b':N' + (_Mfmt % self.addr['mtgt']).encode()
@@ -153,21 +155,26 @@ class PublicKey (object):
         # verify checksum
         inp = ikey.split(b':C')
         if len(inp) != 2:
+            print('f1')
             return None
         ckck = hashlib.sha256(inp[0]).hexdigest()[-8:].encode().upper()
         if ckck != inp[1]:
+            print('f2')
             return None
         # verify keys
         inp = inp[0].split(b':')
         if len(inp) < 7:
+            print('f3')
             return None
         if ((inp[0][:1] != b'P') or (inp[1][:1] != b'K') or
                 (inp[2][:1] != b'M') or (inp[3][:1] != b'N') or
                 (inp[4][:1] != b'Z') or (inp[5][:1] != b'S') or
                 (inp[6][:1] != b'R')):
+            print('f4')
             return None
         # verify version
-        if (inp[0][1:] != b'0100'):
+        if (inp[0][1:] != b'0200'):
+            print('f5', inp[0])
             return None
         # decompress point
         z = PublicKey()
@@ -284,7 +291,7 @@ class PrivateKey (PublicKey):
         return p
 
     def serialize_privkey(self):
-        ekey = b'p%04x' % _format_version
+        ekey = ('p%04x' % self.version).encode()
         ekey += b':k' + (_pfmt % self.p).encode()
         ekey += b':m' + (_mfmt % self.addr['mask']).encode()
         ekey += b':n' + (_mfmt % self.addr['mtgt']).encode()
@@ -321,7 +328,7 @@ class PrivateKey (PublicKey):
                 (inp[6][:1] != b'r')):
             return None
         # verify version
-        if (inp[0][1:] != b'0100'):
+        if (inp[0][1:] != b'0200'):
             return None
         z = PrivateKey()
         z.p = int(inp[1][1:], 16)
